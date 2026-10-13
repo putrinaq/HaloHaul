@@ -1,0 +1,127 @@
+# Production stack for a 1 vCPU / 1 GB / 10 GB VPS (plus 2 GB swap).
+# The server only pulls and runs images; nothing is built here.
+#
+#   docker compose pull && docker compose up -d
+#
+# Memory limits are ceilings, not reservations (sum ≈ 1 GB; typical use ≈ 500 MB).
+
+name: halohaul
+
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+x-worker-image: &worker-image ghcr.io/${GHCR_OWNER:?set GHCR_OWNER}/halohaul-worker:${IMAGE_TAG:-latest}
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-halohaul}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:-halohaul}
+    command:
+      - postgres
+      - -c
+      - shared_buffers=128MB
+      - -c
+      - max_connections=20
+      - -c
+      - work_mem=4MB
+      - -c
+      - maintenance_work_mem=32MB
+      - -c
+      - effective_cache_size=384MB
+      - -c
+      - timezone=UTC
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    mem_limit: 320m
+    logging: *logging
+    networks: [internal]
+
+  # One-shot: applies pending migrations, then exits. app/worker wait for it.
+  migrate:
+    image: *worker-image
+    command: ["node", "--enable-source-maps", "dist/migrate.mjs"]
+    env_file: .env
+    environment:
+      DATABASE_POOL_MAX: "1"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+    mem_limit: 192m
+    logging: *logging
+    networks: [internal]
+
+  app:
+    image: ghcr.io/${GHCR_OWNER:?set GHCR_OWNER}/halohaul-app:${IMAGE_TAG:-latest}
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DATABASE_POOL_MAX: "5"
+      NODE_OPTIONS: "--max-old-space-size=256"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    mem_limit: 384m
+    logging: *logging
+    networks: [internal, web]
+
+  worker:
+    image: *worker-image
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DATABASE_POOL_MAX: "2"
+      NODE_OPTIONS: "--max-old-space-size=128"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    stop_grace_period: 30s
+    mem_limit: 192m
+    logging: *logging
+    networks: [internal]
+
+  caddy:
+    image: caddy:2.11-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      DOMAIN: ${DOMAIN:?set DOMAIN}
+      ACME_EMAIL: ${ACME_EMAIL:?set ACME_EMAIL}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - app
+    mem_limit: 64m
+    logging: *logging
+    networks: [web]
+
+volumes:
+  pgdata:
+  caddy_data:
+  caddy_config:
+
+networks:
+  # Postgres is reachable only from app/worker/migrate, never from Caddy or the host.
+  internal:
+  web:

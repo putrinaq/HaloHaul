@@ -1,0 +1,14 @@
+.git
+.github
+.next
+node_modules
+dist
+coverage
+design
+docs
+*.md
+.env
+.env.*
+!.env.example
+npm-debug.log*
+*.tsbuildinfo
