@@ -142,6 +142,7 @@ async function seedDemo(db: ReturnType<typeof createDb>, e: ReturnType<typeof en
       .values([
         {
           customerId: student.id,
+          itemName: "Canvas sneakers",
           pathType: "url",
           platform: "taobao",
           productUrl: "https://item.taobao.com/item.htm?id=000000000001",
@@ -154,6 +155,7 @@ async function seedDemo(db: ReturnType<typeof createDb>, e: ReturnType<typeof en
         },
         {
           customerId: student.id,
+          itemName: "Polka dot dress",
           pathType: "reverse_search",
           platform: "rednote",
           category: dress.key,

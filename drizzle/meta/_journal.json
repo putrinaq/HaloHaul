@@ -15,6 +15,13 @@
       "when": 1791906858168,
       "tag": "0001_append_only_triggers",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1791909125554,
+      "tag": "0002_order_item_name",
+      "breakpoints": true
     }
   ]
 }

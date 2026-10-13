@@ -105,6 +105,8 @@ export const orders = pgTable(
       .references(() => users.id, { onDelete: "restrict" }),
     pathType: pathType().notNull(),
     platform: platform().notNull(),
+    /** What the student calls the item, e.g. "Canvas sneakers". Shown on admin cards. */
+    itemName: text().notNull(),
     productUrl: text(),
     referencePhotoKeys: text().array().notNull().default(sql`'{}'::text[]`),
 

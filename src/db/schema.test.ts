@@ -32,6 +32,7 @@ async function newOrder() {
     .insert(orders)
     .values({
       customerId: "u1",
+      itemName: "Test item",
       pathType: "url",
       platform: "taobao",
       productUrl: "https://item.taobao.com/item.htm?id=1",
@@ -64,6 +65,7 @@ describe("orders", () => {
     const msg = await pgError(
       db.insert(orders).values({
         customerId: "u1",
+        itemName: "Test item",
         pathType: "reverse_search",
         platform: "other",
         category: "other",
@@ -82,6 +84,7 @@ describe("orders", () => {
     const msg = await pgError(
       db.insert(orders).values({
         customerId: "u1",
+        itemName: "Test item",
         pathType: "url",
         platform: "pdd",
         productUrl: "https://mobile.yangkeduo.com/goods.html?goods_id=1",
