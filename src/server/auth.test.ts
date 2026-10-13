@@ -4,8 +4,6 @@ import { users } from "../db/schema";
 import { createTestDb, type TestDb } from "../db/testing";
 import { createAuth, type Auth } from "./auth";
 
-vi.mock("server-only", () => ({}));
-
 let db: TestDb;
 let auth: Auth;
 let close: () => Promise<void>;
