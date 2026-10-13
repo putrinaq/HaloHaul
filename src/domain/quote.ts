@@ -22,6 +22,13 @@ export interface QuoteBreakdown {
   feeCreditSen: Sen;
   totalMinSen: Sen;
   totalMaxSen: Sen;
+  /**
+   * Collected when the quote is accepted: the TOP of the range. Shipping is
+   * reconciled against this after the warehouse weigh-in.
+   */
+  payableNowSen: Sen;
+  /** Shipping portion of payableNowSen (= shippingMaxSen). */
+  shippingCollectedSen: Sen;
 }
 
 /**
@@ -61,5 +68,7 @@ export function computeQuote(input: QuoteInput): QuoteBreakdown {
     feeCreditSen: appliedCredit,
     totalMinSen: grossMin - appliedCredit,
     totalMaxSen: grossMax - appliedCredit,
+    payableNowSen: grossMax - appliedCredit,
+    shippingCollectedSen: input.shippingMaxSen,
   };
 }

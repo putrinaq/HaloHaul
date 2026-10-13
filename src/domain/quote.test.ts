@@ -46,7 +46,24 @@ describe("computeQuote", () => {
       feeCreditSen: 0,
       totalMinSen: 9_050,
       totalMaxSen: 10_350,
+      payableNowSen: 10_350,
+      shippingCollectedSen: 3_250,
     });
+  });
+
+  it("collects the top of the range up front", () => {
+    const q = computeQuote({
+      itemPriceFen: 10_000,
+      fxRate: FX,
+      serviceFeeSen: 600,
+      shippingMinSen: 1_000,
+      shippingMaxSen: 2_000,
+      deliveryFeeSen: 300,
+      feeCreditSen: 400,
+    });
+    expect(q.payableNowSen).toBe(q.totalMaxSen);
+    expect(q.payableNowSen).toBe(6_500 + 600 + 300 + 2_000 - 400);
+    expect(q.shippingCollectedSen).toBe(2_000);
   });
 
   it("credits an upfront consultation fee toward the order", () => {
