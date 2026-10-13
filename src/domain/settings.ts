@@ -8,6 +8,9 @@ import { BATCH_SHIPPING_MODES } from "./enums";
 const sen = z.number().int().nonnegative();
 const fen = z.number().int().nonnegative();
 const pct = z.number().int().min(0).max(100);
+const dayRange = z
+  .object({ min: z.number().int().min(0), max: z.number().int().min(0) })
+  .refine((r) => r.min <= r.max, "min must be ≤ max");
 
 /**
  * Per-order consolidated pricing. Orders share one forwarder parcel, so no
@@ -80,6 +83,18 @@ export const settingsSchema = z.object({
         .prefault({}),
       /** Over-range charges are capped at this % above the top of the range. */
       overRangeCapPct: pct.default(20),
+      /**
+       * Days from batch cutoff (or purchase, for PDD direct-ship) to campus,
+       * shown to students as an ETA range when they pick a mode.
+       */
+      transitDays: z
+        .object({
+          air: dayRange.default({ min: 7, max: 12 }),
+          air_sensitive: dayRange.default({ min: 10, max: 16 }),
+          sea: dayRange.default({ min: 21, max: 35 }),
+          pdd_direct: dayRange.default({ min: 7, max: 14 }),
+        })
+        .prefault({}),
     })
     .prefault({}),
   pickup: z
@@ -87,6 +102,8 @@ export const settingsSchema = z.object({
       /** Public campus pickup point. Never the operator's home address. */
       pointName: z.string().default("Campus pickup point"),
       pointNote: z.string().default(""),
+      /** Shown on the site; the exact window is set per batch. */
+      windowText: z.string().default("Weekday evenings — the exact window is sent when your batch arrives."),
     })
     .prefault({}),
 });
