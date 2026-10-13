@@ -63,11 +63,17 @@ const TRANSITIONS: Record<OrderStatus, readonly Rule[]> = {
   // cancels expired quotes.
   quote_sent: [{ to: "awaiting_payment", actors: ["student", "admin"] }, cancel],
   awaiting_payment: [{ to: "paid", actors: ADMIN_SYSTEM }, cancel],
-  paid: [{ to: "order_submitted", actors: ADMIN }],
+  // Cancelling a paid order (before it is bought from the seller) needs a full
+  // refund ledger entry — see cancellationNeedsRefund().
+  paid: [
+    { to: "order_submitted", actors: ADMIN },
+    { to: "cancelled", actors: ["student", "admin"] },
+  ],
   order_submitted: [
     { to: "at_warehouse", actors: ADMIN, onlyModes: BATCH_MODES },
-    // PDD direct-ship: no forwarder leg, PDD ships straight to Malaysia.
-    { to: "shipped", actors: ADMIN, onlyModes: ["pdd_direct"] },
+    // PDD direct-ship: PDD delivers to the operator in Malaysia, then campus
+    // pickup. No warehouse, QC or batch.
+    { to: "arrived_my", actors: ADMIN, onlyModes: ["pdd_direct"] },
     // Digital products are delivered by email, nothing to ship.
     { to: "completed", actors: ADMIN, onlyModes: ["none"] },
   ],
@@ -140,9 +146,20 @@ export function isPrePayment(status: OrderStatus): boolean {
   return (PRE_PAYMENT_STATUSES as readonly OrderStatus[]).includes(status);
 }
 
-/** Cancellation through the UI is free and allowed only before payment. */
+/** Statuses from which an order may still be cancelled (before it is bought). */
+export const CANCELLABLE_STATUSES = [
+  ...PRE_PAYMENT_STATUSES,
+  "paid",
+] as const satisfies readonly OrderStatus[];
+
+/** Cancellation is allowed until the item is bought (order_submitted onwards: never). */
 export function isCancellableByStudent(status: OrderStatus): boolean {
-  return isPrePayment(status);
+  return (CANCELLABLE_STATUSES as readonly OrderStatus[]).includes(status);
+}
+
+/** A paid order being cancelled must get a full refund ledger entry. */
+export function cancellationNeedsRefund(status: OrderStatus): boolean {
+  return status === "paid";
 }
 
 /** Every (from, to) edge regardless of context — used by tests and docs. */

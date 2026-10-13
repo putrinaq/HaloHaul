@@ -5,6 +5,7 @@ import {
   allowedTransitions,
   assertTransition,
   canTransition,
+  cancellationNeedsRefund,
   InvalidTransitionError,
   isCancellableByStudent,
   isTerminal,
@@ -18,7 +19,7 @@ const student: TransitionContext = { actor: "student", shippingMode: "air" };
 const system: TransitionContext = { actor: "system", shippingMode: "air" };
 
 describe("transition map", () => {
-  it("contains exactly the edges from the brief (plus the two mode-specific ones)", () => {
+  it("contains exactly the agreed edges", () => {
     const expected = new Set([
       "submitted>needs_info", "submitted>sourcing", "submitted>quote_sent", "submitted>rejected",
       "needs_info>submitted",
@@ -32,10 +33,11 @@ describe("transition map", () => {
       "ready_to_consolidate>consolidated",
       "consolidated>shipped", "shipped>arrived_my", "arrived_my>ready_for_pickup",
       "ready_for_pickup>completed",
-      // any pre-payment state → cancelled
+      // any pre-payment state → cancelled, and paid → cancelled (with refund)
       ...PRE_PAYMENT_STATUSES.map((s) => `${s}>cancelled`),
+      "paid>cancelled",
       // mode-specific: PDD direct-ship and digital
-      "order_submitted>shipped", "order_submitted>completed",
+      "order_submitted>arrived_my", "order_submitted>completed",
     ]);
     const actual = new Set(allEdges().map(([a, b]) => `${a}>${b}`));
     expect(actual).toEqual(expected);
@@ -111,8 +113,20 @@ describe("cancellation", () => {
     }
   });
 
-  it("is impossible from paid onwards", () => {
-    const after: OrderStatus[] = ["paid", "order_submitted", "at_warehouse", "qc_review", "shipped"];
+  it("is allowed at paid, with a full refund", () => {
+    expect(isCancellableByStudent("paid")).toBe(true);
+    expect(canTransition("paid", "cancelled", student)).toBe(true);
+    expect(canTransition("paid", "cancelled", admin)).toBe(true);
+    expect(cancellationNeedsRefund("paid")).toBe(true);
+    for (const s of PRE_PAYMENT_STATUSES) expect(cancellationNeedsRefund(s)).toBe(false);
+  });
+
+  it("is never automatic once paid", () => {
+    expect(canTransition("paid", "cancelled", system)).toBe(false);
+  });
+
+  it("is impossible from order_submitted onwards", () => {
+    const after: OrderStatus[] = ["order_submitted", "at_warehouse", "qc_review", "shipped", "ready_for_pickup"];
     for (const s of after) {
       expect(isCancellableByStudent(s)).toBe(false);
       expect(canTransition(s, "cancelled", student)).toBe(false);
@@ -172,9 +186,19 @@ describe("shipping-mode specific paths", () => {
     }
   });
 
-  it("lets PDD direct-ship skip the warehouse and batch", () => {
+  it("sends PDD direct-ship to the operator, then campus pickup — no warehouse, QC or batch", () => {
     const ctx = { actor: "admin" as const, shippingMode: "pdd_direct" as const };
-    expect(allowedTransitions("order_submitted", ctx)).toEqual(["shipped"]);
+    expect(allowedTransitions("order_submitted", ctx)).toEqual(["arrived_my"]);
+    const path: OrderStatus[] = ["order_submitted", "arrived_my", "ready_for_pickup", "completed"];
+    for (let i = 1; i < path.length; i++) {
+      expect(() => assertTransition(path[i - 1], path[i], ctx)).not.toThrow();
+    }
+    expect(canTransition("order_submitted", "at_warehouse", ctx)).toBe(false);
+    expect(canTransition("order_submitted", "shipped", ctx)).toBe(false);
+  });
+
+  it("does not let batch modes skip straight to arrived", () => {
+    expect(canTransition("order_submitted", "arrived_my", admin)).toBe(false);
   });
 
   it("completes digital orders straight after purchase", () => {
