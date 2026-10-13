@@ -13,7 +13,10 @@ export interface SessionUser {
 }
 
 export async function getSessionUser(): Promise<SessionUser | null> {
-  const session = await getAuth().api.getSession({ headers: await headers() });
+  // Await the request headers first: during prerender this suspends, so the
+  // auth instance (and its env/secret checks) is only built at request time.
+  const requestHeaders = await headers();
+  const session = await getAuth().api.getSession({ headers: requestHeaders });
   if (!session) return null;
   const u = session.user as typeof session.user & { role: UserRole; twoFactorEnabled?: boolean | null };
   return {

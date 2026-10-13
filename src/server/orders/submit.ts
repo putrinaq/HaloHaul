@@ -9,7 +9,7 @@ import { scaleParcel } from "../../domain/shipping";
 import { buildShippingSnapshot, shippingOptions } from "../../domain/shippingOptions";
 import { getNextCutoffs, getRestrictedRules, getSettings } from "../data/catalog";
 import { getProfile } from "../data/customer";
-import { isOwnPhotoKey } from "../uploads";
+import { isOwnPhotoKey } from "../photos";
 
 export type SubmitOrderResult =
   | { ok: true; orderId: number; restricted: boolean; rerouted: boolean }

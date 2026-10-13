@@ -1,7 +1,10 @@
 import "server-only";
 import { randomUUID } from "node:crypto";
-import sharp from "sharp";
+import type { Sharp, SharpOptions } from "sharp";
+import { escapeRe, UUID_RE } from "./photos";
 import type { ObjectStore } from "./storage";
+
+export { GET_EXPIRES_S, isOwnPhotoKey, ownPhotoUrl } from "./photos";
 
 // Photo uploads:
 //   1. presign: the browser gets a short-lived PUT URL for incoming/{user}/{uuid}
@@ -17,12 +20,19 @@ export const ALLOWED_UPLOAD_TYPES = ["image/jpeg", "image/png", "image/webp"] as
 const MAX_INPUT_PIXELS = 40_000_000; // ~40 MP; refuses decompression bombs
 const MAX_EDGE_PX = 2048;
 const PUT_EXPIRES_S = 300;
-export const GET_EXPIRES_S = 600;
 
-const UUID = "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}";
+type SharpFactory = (input: Uint8Array, options?: SharpOptions) => Sharp;
+let sharpFactory: Promise<SharpFactory> | undefined;
 
-sharp.cache(false);
-sharp.concurrency(1); // 1 vCPU, 1 GB RAM
+/** Loaded on first use, so only the finalize route pays for the native library. */
+function loadSharp(): Promise<SharpFactory> {
+  sharpFactory ??= import("sharp").then(({ default: sharp }) => {
+    sharp.cache(false);
+    sharp.concurrency(1); // 1 vCPU, 1 GB RAM
+    return sharp;
+  });
+  return sharpFactory;
+}
 
 export class UploadError extends Error {
   constructor(
@@ -38,16 +48,8 @@ function assertSafeUserId(userId: string) {
   if (!/^[A-Za-z0-9_-]{8,64}$/.test(userId)) throw new UploadError("Invalid user", 403);
 }
 
-export function isOwnPhotoKey(userId: string, key: string): boolean {
-  return new RegExp(`^photos/${escapeRe(userId)}/${UUID}\\.webp$`).test(key);
-}
-
 function isOwnIncomingKey(userId: string, key: string): boolean {
-  return new RegExp(`^incoming/${escapeRe(userId)}/${UUID}$`).test(key);
-}
-
-function escapeRe(s: string) {
-  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return new RegExp(`^incoming/${escapeRe(userId)}/${UUID_RE}$`).test(key);
 }
 
 export async function createUploadUrl(
@@ -73,6 +75,7 @@ export async function createUploadUrl(
 
 /** Decode, auto-rotate, shrink and re-encode. Output carries no EXIF/GPS. */
 export async function processImage(bytes: Uint8Array): Promise<Buffer> {
+  const sharp = await loadSharp();
   let format: string | undefined;
   try {
     format = (await sharp(bytes, { limitInputPixels: MAX_INPUT_PIXELS }).metadata()).format;
@@ -115,10 +118,4 @@ export async function finalizeUpload(store: ObjectStore, userId: string, incomin
   } finally {
     await store.delete(incomingKey);
   }
-}
-
-/** Presigned GET for a student's own photo; null for anyone else's key. */
-export async function ownPhotoUrl(store: ObjectStore, userId: string, key: string): Promise<string | null> {
-  if (!isOwnPhotoKey(userId, key)) return null;
-  return store.presignGet(key, GET_EXPIRES_S);
 }
