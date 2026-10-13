@@ -9,13 +9,19 @@ const sen = z.number().int().nonnegative();
 const fen = z.number().int().nonnegative();
 const pct = z.number().int().min(0).max(100);
 
+/**
+ * Per-order consolidated pricing. Orders share one forwarder parcel, so no
+ * order pays a first-kg premium:
+ *   per-order shipping = max(minChargeSen, billable kg × (subsequentKgFen + spreadFen))
+ * with billable weight rounded up to 0.1 kg.
+ */
 export const rateSchema = z.object({
-  /** Charge for the first (or only) kg of billable weight. */
-  firstKgFen: fen,
-  /** Charge per additional kg, pro-rated per `stepG`. */
-  additionalKgFen: fen,
-  /** Billable weight beyond the first kg is rounded up to this step. */
-  stepG: z.union([z.literal(100), z.literal(500), z.literal(1000)]).default(1000),
+  /** Forwarder's subsequent-kg rate (RMB fen per kg). */
+  subsequentKgFen: fen,
+  /** HaloHaul spread added per kg (RMB fen per kg). */
+  spreadFen: fen.default(0),
+  /** Floor for any single order's shipping (MYR sen). */
+  minChargeSen: sen.default(0),
   /** Volumetric divisor (cm³ per kg). */
   volumetricDivisor: z.number().int().positive().default(6000),
 });
@@ -48,15 +54,16 @@ export const settingsSchema = z.object({
       forwarders: z.array(forwarderSchema).min(1).default([
         {
           name: "default",
+          // Placeholder rates — set real forwarder numbers in admin settings.
           rates: {
-            air: { firstKgFen: 3000, additionalKgFen: 2000, stepG: 1000, volumetricDivisor: 6000 },
+            air: { subsequentKgFen: 2000, spreadFen: 300, minChargeSen: 500, volumetricDivisor: 6000 },
             air_sensitive: {
-              firstKgFen: 4000,
-              additionalKgFen: 2800,
-              stepG: 1000,
+              subsequentKgFen: 2800,
+              spreadFen: 300,
+              minChargeSen: 700,
               volumetricDivisor: 6000,
             },
-            sea: { firstKgFen: 1500, additionalKgFen: 800, stepG: 1000, volumetricDivisor: 6000 },
+            sea: { subsequentKgFen: 700, spreadFen: 200, minChargeSen: 500, volumetricDivisor: 6000 },
           },
         },
       ]),

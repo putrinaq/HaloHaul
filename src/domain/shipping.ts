@@ -54,20 +54,32 @@ export function scaleParcel(p: Parcel, quantity: number): Parcel {
   return { ...p, weightG: p.weightG * quantity, heightMm: p.heightMm * quantity };
 }
 
+/** Billable weight is charged in 0.1 kg steps, rounded up. */
+export function roundUpTo100g(g: number): number {
+  assertNonNegInt(g, "g");
+  return Math.ceil(g / 100) * 100;
+}
+
+/** Consolidated per-kg rate: forwarder subsequent-kg rate + HaloHaul spread. */
+export function consolidatedRateFen(rate: Rate): Fen {
+  return rate.subsequentKgFen + rate.spreadFen;
+}
+
 /**
- * Cost of a billable weight under a "first kg + each additional kg" rate.
- * Anything up to 1 kg costs the first-kg price. Beyond that, the excess is
- * rounded up to `stepG` and charged pro-rata of the per-kg price, rounded up
- * to a whole fen.
+ * Per-order shipping for a billable weight:
+ *   max(minChargeSen, billable kg (rounded up to 0.1 kg) × consolidated rate)
+ * No first-kg premium — orders share one consolidated forwarder parcel.
+ * RMB is rounded up to a whole fen, then converted at `fxRate`.
  */
-export function rateCostFen(billableG: number, rate: Rate): Fen {
-  assertNonNegInt(billableG, "billableG");
-  if (billableG === 0) return 0;
-  if (billableG <= 1000) return rate.firstKgFen;
-  const extraG = billableG - 1000;
-  const steps = Math.ceil(extraG / rate.stepG);
-  const extraFen = Math.ceil((steps * rate.stepG * rate.additionalKgFen) / 1000);
-  return rate.firstKgFen + extraFen;
+export function orderShippingCost(
+  billableG: number,
+  rate: Rate,
+  fxRate: FxRateMicro,
+): { chargedG: number; fen: Fen; sen: Sen } {
+  const chargedG = roundUpTo100g(billableG);
+  const fen = Math.ceil((chargedG * consolidatedRateFen(rate)) / 1000);
+  const sen = Math.max(rate.minChargeSen, fenToSen(fen, fxRate));
+  return { chargedG, fen, sen };
 }
 
 export interface ShippingEstimateInput {
@@ -125,16 +137,16 @@ export function estimateShipping(input: ShippingEstimateInput): ShippingEstimate
       : input.settings.shipping.rangeHeadroomPct.categoryDefault;
   const billableMaxG = Math.ceil((billableG * (100 + headroom)) / 100);
 
-  const minFen = rateCostFen(billableG, rate);
-  const maxFen = rateCostFen(billableMaxG, rate);
+  const min = orderShippingCost(billableG, rate, input.fxRate);
+  const max = orderShippingCost(billableMaxG, rate, input.fxRate);
   return {
     applies: true,
     billableG,
     billableMaxG,
-    minFen,
-    maxFen,
-    minSen: fenToSen(minFen, input.fxRate),
-    maxSen: fenToSen(maxFen, input.fxRate),
+    minFen: min.fen,
+    maxFen: max.fen,
+    minSen: min.sen,
+    maxSen: max.sen,
   };
 }
 
@@ -153,6 +165,6 @@ export function finalShippingCost(input: {
     throw new Error(`Forwarder "${forwarder.name}" has no rate for mode "${input.mode}"`);
   }
   const billableG = billableWeightG(input.parcel, rate.volumetricDivisor);
-  const fen = rateCostFen(billableG, rate);
-  return { billableG, fen, sen: fenToSen(fen, input.fxRate) };
+  const { fen, sen } = orderShippingCost(billableG, rate, input.fxRate);
+  return { billableG, fen, sen };
 }

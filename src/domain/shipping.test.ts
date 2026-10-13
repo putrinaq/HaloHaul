@@ -3,15 +3,18 @@ import { parseFxRate } from "./money";
 import { DEFAULT_SETTINGS, parseSettings, type Rate } from "./settings";
 import {
   billableWeightG,
+  consolidatedRateFen,
   estimateShipping,
   finalShippingCost,
-  rateCostFen,
+  orderShippingCost,
+  roundUpTo100g,
   scaleParcel,
   volumetricWeightG,
 } from "./shipping";
 
 const FX = parseFxRate("0.65");
-const rate: Rate = { firstKgFen: 3_000, additionalKgFen: 2_000, stepG: 1000, volumetricDivisor: 6000 };
+// Default air: ¥20.00/kg forwarder + ¥3.00/kg spread = ¥23.00/kg, min RM5.
+const air = DEFAULT_SETTINGS.shipping.forwarders[0].rates.air as Rate;
 
 describe("volumetric and billable weight", () => {
   it("computes L×W×H/6000 in grams", () => {
@@ -20,7 +23,6 @@ describe("volumetric and billable weight", () => {
   });
 
   it("rounds volumetric weight up to the next gram", () => {
-    // 1 mm³ is a sliver of a gram, but still counts
     expect(volumetricWeightG({ weightG: 0, lengthMm: 1, widthMm: 1, heightMm: 1 })).toBe(1);
   });
 
@@ -48,26 +50,34 @@ describe("volumetric and billable weight", () => {
   });
 });
 
-describe("rateCostFen", () => {
-  it("charges the first-kg price for anything up to 1 kg", () => {
-    expect(rateCostFen(1, rate)).toBe(3_000);
-    expect(rateCostFen(1000, rate)).toBe(3_000);
+describe("orderShippingCost (consolidated, per order)", () => {
+  it("rounds billable weight up to 0.1 kg", () => {
+    expect(roundUpTo100g(0)).toBe(0);
+    expect(roundUpTo100g(1)).toBe(100);
+    expect(roundUpTo100g(100)).toBe(100);
+    expect(roundUpTo100g(101)).toBe(200);
   });
 
-  it("charges each additional kg, rounding the excess up", () => {
-    expect(rateCostFen(1001, rate)).toBe(5_000);
-    expect(rateCostFen(2000, rate)).toBe(5_000);
-    expect(rateCostFen(2001, rate)).toBe(7_000);
+  it("charges billable kg × (subsequent-kg rate + spread)", () => {
+    expect(consolidatedRateFen(air)).toBe(2_300);
+    // 625 g → 0.7 kg × ¥23 = ¥16.10 → RM 10.465 → 1047 sen
+    expect(orderShippingCost(625, air, FX)).toEqual({ chargedG: 700, fen: 1_610, sen: 1_047 });
   });
 
-  it("pro-rates with finer steps", () => {
-    const half = { ...rate, stepG: 500 as const };
-    expect(rateCostFen(1200, half)).toBe(4_000); // 1 kg + one 500 g step
-    expect(rateCostFen(1600, half)).toBe(5_000);
+  it("has no first-kg premium: cost is linear in weight", () => {
+    const one = orderShippingCost(1000, air, FX);
+    const two = orderShippingCost(2000, air, FX);
+    expect(two.fen).toBe(one.fen * 2);
   });
 
-  it("charges nothing for zero weight", () => {
-    expect(rateCostFen(0, rate)).toBe(0);
+  it("applies the per-order minimum charge", () => {
+    // 40 g → 0.1 kg × ¥23 = ¥2.30 → RM 1.50, below the RM 5 minimum
+    expect(orderShippingCost(40, air, FX)).toEqual({ chargedG: 100, fen: 230, sen: 500 });
+  });
+
+  it("rounds the RMB amount up to a whole fen", () => {
+    const odd: Rate = { subsequentKgFen: 1_001, spreadFen: 0, minChargeSen: 0, volumetricDivisor: 6000 };
+    expect(orderShippingCost(100, odd, FX).fen).toBe(101); // 100.1 fen → 101
   });
 });
 
@@ -83,23 +93,15 @@ describe("estimateShipping", () => {
     expect(seller.billableG).toBe(625);
     expect(seller.billableMaxG).toBe(719); // ceil(625 × 1.15)
     expect(fallback.billableMaxG).toBe(844); // ceil(625 × 1.35)
-    expect(seller.minSen).toBe(1_950); // ¥30 × 0.65
-    expect(seller.minSen).toBeLessThanOrEqual(seller.maxSen);
+    expect(seller.minSen).toBe(1_047); // 0.7 kg
+    expect(seller.maxSen).toBe(1_196); // 0.8 kg → ¥18.40 → 1196
+    expect(fallback.maxSen).toBe(1_346); // 0.9 kg → ¥20.70 → 1345.5 → 1346
   });
 
-  it("widens to a real range once headroom crosses a kg boundary", () => {
-    const est = estimateShipping({
-      mode: "air",
-      parcel: { weightG: 900, lengthMm: 100, widthMm: 100, heightMm: 100 },
-      source: "category_default",
-      quantity: 1,
-      fxRate: FX,
-      settings: DEFAULT_SETTINGS,
-    });
-    expect(est.minFen).toBe(3_000);
-    expect(est.maxFen).toBe(5_000); // 1215 g → 2 kg
-    expect(est.minSen).toBe(1_950);
-    expect(est.maxSen).toBe(3_250);
+  it("uses the configured headroom percentages", () => {
+    const tight = parseSettings({ shipping: { rangeHeadroomPct: { sellerConfirmed: 0 } } });
+    const est = estimateShipping({ mode: "air", parcel: top, source: "seller_confirmed", quantity: 1, fxRate: FX, settings: tight });
+    expect(est.minSen).toBe(est.maxSen);
   });
 
   it("multiplies by quantity", () => {
@@ -120,13 +122,12 @@ describe("estimateShipping", () => {
     const settings = parseSettings({
       shipping: {
         defaultForwarder: "fastco",
-        forwarders: [
-          { name: "fastco", rates: { air: { firstKgFen: 1_000, additionalKgFen: 500 } } },
-        ],
+        forwarders: [{ name: "fastco", rates: { air: { subsequentKgFen: 1_000 } } }],
       },
     });
     const est = estimateShipping({ mode: "air", parcel: top, source: "seller_confirmed", quantity: 1, fxRate: FX, settings });
-    expect(est.minFen).toBe(1_000);
+    expect(est.minFen).toBe(700); // 0.7 kg × ¥10, no spread, no minimum
+    expect(est.minSen).toBe(455);
     expect(() =>
       estimateShipping({ mode: "sea", parcel: top, source: "seller_confirmed", quantity: 1, fxRate: FX, settings }),
     ).toThrow(/no rate for mode "sea"/);
@@ -137,14 +138,15 @@ describe("estimateShipping", () => {
 });
 
 describe("finalShippingCost", () => {
-  it("prices the warehouse weigh-in with the same table", () => {
+  it("prices the warehouse weigh-in with the same formula", () => {
     const cost = finalShippingCost({
       mode: "air",
       parcel: { weightG: 1500, lengthMm: 300, widthMm: 200, heightMm: 100 },
       fxRate: FX,
       settings: DEFAULT_SETTINGS,
     });
-    expect(cost).toEqual({ billableG: 1500, fen: 5_000, sen: 3_250 });
+    // 1.5 kg × ¥23 = ¥34.50 → RM 22.425 → 2243
+    expect(cost).toEqual({ billableG: 1500, fen: 3_450, sen: 2_243 });
   });
 
   it("is zero for modes without a forwarder leg", () => {
