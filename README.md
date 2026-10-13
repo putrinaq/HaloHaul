@@ -70,6 +70,34 @@ Without `RESEND_API_KEY`, emails (such as magic links) are printed to the consol
 - Business logic lives in `src/domain`. Routes and the worker call it and never
   reimplement it.
 
+## Photo storage (Cloudflare R2)
+
+Photos never touch local disk. Browsers upload straight to R2 with a presigned
+PUT. The server then re-encodes each photo with sharp (stripping EXIF/GPS) and
+serves it back through short-lived presigned GETs. Without the `R2_*` env vars,
+uploads are switched off and the order form says so.
+
+Bucket setup:
+
+1. Create a **private** bucket (`R2_BUCKET`) and an API token with Object Read &
+   Write on that bucket only.
+2. Add a CORS rule so browsers can upload:
+
+   ```json
+   [{ "AllowedOrigins": ["https://YOUR_DOMAIN"], "AllowedMethods": ["PUT"],
+      "AllowedHeaders": ["content-type"], "MaxAgeSeconds": 3600 }]
+   ```
+
+3. Add a lifecycle rule that deletes objects under `incoming/` after 1 day, to
+   clean up abandoned uploads.
+
+## Home page images
+
+The design photos live in Figma and `design/photos` (not in git).
+`node scripts/optimize-images.mjs` writes the small WebP files in
+`public/images`, which *are* committed. Next's runtime image optimisation stays
+off, so the 1 GB VPS never resizes images.
+
 ## Deploy
 
 Push to `main`. GitHub Actions lints, typechecks and tests, then builds the
