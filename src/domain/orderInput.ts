@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { getCategory, validateCategoryDetails } from "./categories";
+import { getCategory, validateCategoryDetails, type CategoryDefinition } from "./categories";
 import {
   CONDITION_PREFERENCES,
   FULFILMENT_METHODS,
@@ -81,6 +81,12 @@ export interface NormalizedOrder {
   contact: { displayName: string; phone: string; campus: string | null };
 }
 
+function isComplete(v: Partial<OrderFormValues>): v is OrderFormValues {
+  return (Object.keys(orderFormSchema.shape) as Array<keyof OrderFormValues>).every(
+    (k) => k === "conditionPreference" || v[k] !== undefined,
+  );
+}
+
 export type OrderValidationResult =
   | { ok: true; value: NormalizedOrder }
   | { ok: false; fieldErrors: Record<string, string> };
@@ -91,19 +97,23 @@ export function validateOrderInput(raw: unknown): OrderValidationResult {
     fieldErrors[key] ??= message;
   };
 
-  const parsed = orderFormSchema.safeParse(raw);
-  if (!parsed.success) {
-    for (const issue of parsed.error.issues) add(issue.path.map(String).join(".") || "_form", issue.message);
-    return { ok: false, fieldErrors };
+  // Parse each field on its own so one bad or not-yet-filled field (e.g. the
+  // shipping mode on a later form step) never hides errors in the others —
+  // the multi-step form validates step by step with this same function.
+  const obj = raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {};
+  const v: Partial<OrderFormValues> = {};
+  for (const key of Object.keys(orderFormSchema.shape) as Array<keyof typeof orderFormSchema.shape>) {
+    const r = orderFormSchema.shape[key].safeParse(obj[key]);
+    if (r.success) (v as Record<string, unknown>)[key] = r.data;
+    else for (const issue of r.error.issues) add([key, ...issue.path.map(String)].join("."), issue.message);
   }
-  const v = parsed.data;
 
   // ---- link and path routing ----------------------------------------------
   let pathType = v.pathType;
   let rerouted = false;
   let platform: Platform = "other";
   let productUrl: string | null = null;
-  const linkText = v.productUrl.trim();
+  const linkText = (v.productUrl ?? "").trim();
 
   if (pathType === "url" && !linkText) add("productUrl", "Paste the product link");
   if (linkText) {
@@ -113,56 +123,66 @@ export function validateOrderInput(raw: unknown): OrderValidationResult {
     } else {
       platform = link.platform;
       productUrl = link.url;
-      ({ pathType, rerouted } = routeForLink(pathType, link));
+      if (pathType) ({ pathType, rerouted } = routeForLink(pathType, link));
     }
   }
 
   // ---- category ------------------------------------------------------------
-  let category;
-  try {
-    category = getCategory(v.category);
-  } catch {
-    add("category", "Choose a category");
-    return { ok: false, fieldErrors };
+  let category: CategoryDefinition | null = null;
+  if (v.category !== undefined) {
+    try {
+      category = getCategory(v.category);
+    } catch {
+      add("category", "Choose a category");
+    }
   }
-  if (pathType === "digital" && category.key !== "digital") {
+  if (category && pathType === "digital" && category.key !== "digital") {
     add("category", "Digital orders use the Digital product category");
   }
-  if (pathType !== "digital" && category.key === "digital") {
+  if (category && pathType && pathType !== "digital" && category.key === "digital") {
     add("category", "For digital items, choose “You want a digital product” at the start");
   }
 
-  const cat = validateCategoryDetails({ category: category.key, details: v.details, variantText: v.variantText });
-  if (!cat.ok) {
+  const cat = category
+    ? validateCategoryDetails({ category: category.key, details: v.details ?? {}, variantText: v.variantText })
+    : null;
+  if (cat && !cat.ok) {
     for (const [key, message] of Object.entries(cat.fieldErrors)) {
       add(key === "variant_text" ? "variantText" : `details.${key}`, message);
     }
   }
 
   // ---- what we're searching from ----------------------------------------
-  if (pathType === "reverse_search" && v.referencePhotoKeys.length === 0 && !productUrl) {
+  if (pathType === "reverse_search" && (v.referencePhotoKeys ?? []).length === 0 && !productUrl) {
     add("referencePhotoKeys", "Add at least one photo or screenshot of the item");
   }
   const needsCondition = pathType === "reverse_search" || pathType === "consultation" || !productUrl;
-  if (needsCondition && pathType !== "digital" && !v.conditionPreference) {
+  if (pathType && needsCondition && pathType !== "digital" && !v.conditionPreference) {
     add("conditionPreference", "Tell us whether secondhand is OK");
   }
-  if (pathType === "consultation" && v.remarks.length < 10) {
+  if (pathType === "consultation" && (v.remarks ?? "").length < 10) {
     add("remarks", "Describe what you need (and your budget) so we can research it");
   }
 
   // ---- shipping ------------------------------------------------------------
-  const modes = availableShippingModes(platform, pathType, category);
-  if (!modes.includes(v.shippingMode)) {
-    add("shippingMode", modes.length === 1 && modes[0] === "none" ? "Digital items don't ship" : "Choose one of the shipping options shown");
+  if (pathType && category && v.shippingMode) {
+    const modes = availableShippingModes(platform, pathType, category);
+    if (!modes.includes(v.shippingMode)) {
+      add(
+        "shippingMode",
+        modes.length === 1 && modes[0] === "none" ? "Digital items don't ship" : "Choose one of the shipping options shown",
+      );
+    }
   }
-  const shippable = v.shippingMode !== "none";
 
   // ---- contact -------------------------------------------------------------
-  const phone = normalizeMyMobile(v.contact.phone);
-  if (!phone) add("contact.phone", "Enter a Malaysian mobile number, e.g. 012-345 6789");
+  const phone = v.contact ? normalizeMyMobile(v.contact.phone) : null;
+  if (v.contact && !phone) add("contact.phone", "Enter a Malaysian mobile number, e.g. 012-345 6789");
 
-  if (Object.keys(fieldErrors).length > 0 || !cat.ok || !phone) return { ok: false, fieldErrors };
+  if (Object.keys(fieldErrors).length > 0) return { ok: false, fieldErrors };
+  // Every field parsed and every cross-field rule passed past this point.
+  if (!pathType || !cat?.ok || !phone || !isComplete(v)) return { ok: false, fieldErrors: { _form: "Incomplete order" } };
+  const shippable = v.shippingMode !== "none";
 
   return {
     ok: true,

@@ -126,6 +126,17 @@ describe("validateOrderInput", () => {
     expect(errors({ category: "cosmetics", details: {}, variantText: "" })).toEqual({ variantText: "Shade is required" });
   });
 
+  it("reports errors in early fields even while later steps are still empty", () => {
+    const r = validateOrderInput({ pathType: "url", productUrl: "https://www.amazon.com/dp/1", itemName: "", quantity: 1 });
+    expect(r.ok).toBe(false);
+    if (r.ok) return;
+    expect(r.fieldErrors.productUrl).toMatch(/supported platforms/);
+    expect(r.fieldErrors.itemName).toBeDefined();
+    expect(Object.keys(r.fieldErrors)).toEqual(
+      expect.arrayContaining(["productUrl", "itemName", "category", "shippingMode", "contact", "acceptTerms"]),
+    );
+  });
+
   it("caps quantity and photos", () => {
     expect(errors({ quantity: 0 }).quantity).toMatch(/at least 1/);
     expect(errors({ referencePhotoKeys: Array.from({ length: 7 }, (_, i) => `k${i}`) }).referencePhotoKeys).toMatch(/Up to 6/);

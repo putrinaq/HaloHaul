@@ -95,6 +95,14 @@ export const settingsSchema = z.object({
           pdd_direct: dayRange.default({ min: 7, max: 14 }),
         })
         .prefault({}),
+      /** How often each mode ships, shown under the home countdowns. */
+      cadenceText: z
+        .object({
+          air: z.string().default("weekly consolidation"),
+          air_sensitive: z.string().default("weekly consolidation"),
+          sea: z.string().default("every 2 weeks"),
+        })
+        .prefault({}),
     })
     .prefault({}),
   pickup: z

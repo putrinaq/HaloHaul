@@ -40,8 +40,18 @@ const HOSTS: ReadonlyArray<readonly [string, Exclude<Platform, "other">]> = [
   ["iesdouyin.com", "douyin"],
 ];
 
+/** Display order (as in the home design). */
 export const SUPPORTED_PLATFORMS: ReadonlyArray<Exclude<Platform, "other">> = [
-  ...new Set(HOSTS.map(([, p]) => p)),
+  "taobao",
+  "pdd",
+  "weidian",
+  "xianyu",
+  "douyin",
+  "dewu",
+  "jd",
+  "1688",
+  "meituan",
+  "rednote",
 ];
 
 function hostMatches(host: string, suffix: string): boolean {

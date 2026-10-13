@@ -111,3 +111,12 @@ describe("routeForLink", () => {
     expect(contentPostNotice("rednote", "RM 4.00")).toMatch(/RedNote link points to a post.*RM 4\.00/);
   });
 });
+
+describe("SUPPORTED_PLATFORMS", () => {
+  it("lists every platform we accept links from, once", async () => {
+    const { SUPPORTED_PLATFORMS } = await import("./links");
+    const hosts = ["taobao.com", "yangkeduo.com", "weidian.com", "goofish.com", "douyin.com", "dewu.com", "jd.com", "1688.com", "meituan.com", "xiaohongshu.com"];
+    expect(new Set(hosts.map((h) => platformForHost(h)))).toEqual(new Set(SUPPORTED_PLATFORMS));
+    expect(new Set(SUPPORTED_PLATFORMS).size).toBe(SUPPORTED_PLATFORMS.length);
+  });
+});
