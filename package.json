@@ -15,7 +15,8 @@
     "db:migrate": "tsx --env-file=.env src/db/migrate.ts",
     "db:seed": "tsx --env-file=.env src/db/seed.ts",
     "db:studio": "drizzle-kit studio",
-    "worker": "tsx --env-file=.env src/worker/index.ts"
+    "worker": "tsx --env-file=.env src/worker/index.ts",
+    "db:local": "pglite-server --db=.pglite --port=5432 --max-connections=10"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1150.0",
@@ -43,6 +44,7 @@
   },
   "devDependencies": {
     "@electric-sql/pglite": "^0.5.9",
+    "@electric-sql/pglite-socket": "^0.2.12",
     "@tailwindcss/turbopack": "^4",
     "@types/node": "^24.19.2",
     "@types/pg": "^8.23.1",

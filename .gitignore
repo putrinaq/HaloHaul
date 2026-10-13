@@ -54,3 +54,6 @@ backup.env
 
 # local editor scratch
 /text
+
+# local PGlite database (npm run db:local)
+/.pglite/

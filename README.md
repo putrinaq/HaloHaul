@@ -42,6 +42,8 @@ cp .env.example .env
 # set DATABASE_URL=postgres://halohaul:halohaul@localhost:5432/halohaul
 # set APP_URL=http://localhost:3000 and BETTER_AUTH_SECRET (openssl rand -base64 48)
 docker compose -f docker-compose.dev.yml up -d
+#   …or, without Docker: `npm run db:local` in its own terminal (PGlite on
+#   port 5432, data kept in .pglite/; same DATABASE_URL works)
 npm install
 npm run db:migrate
 npm run db:seed -- --demo     # admin from ADMIN_EMAIL/ADMIN_PASSWORD + demo student
