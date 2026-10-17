@@ -1,11 +1,13 @@
 import { ChevronRight, Plane, Ship } from "lucide-react";
 import Link from "next/link";
 import { connection } from "next/server";
+import { ScrollScope } from "@/components/motion/ScrollScope";
 import { getDb } from "@/db/client";
 import { BATCH_MODE_LABELS } from "@/domain/labels";
 import { fmtDate } from "@/lib/format";
 import { getNextBatchPerMode, getSettings } from "@/server/data/catalog";
 import { Countdown } from "./Countdown";
+import { SectionHeading } from "./SectionHeading";
 
 async function loadCutoffs() {
   await connection();
@@ -20,17 +22,23 @@ async function loadCutoffs() {
 export async function Cutoffs() {
   const { now, cards, cadence } = await loadCutoffs();
 
+  // Streams in behind Suspense, so it registers its own scroll animations.
   return (
-    <div className="grid gap-4 sm:grid-cols-2">
+    <ScrollScope className="grid gap-4 sm:grid-cols-2">
       {cards.length === 0 ? (
         <p className="rounded-2xl bg-card p-6 text-muted-foreground sm:col-span-2">
           The next batches haven&apos;t been scheduled yet. Orders placed now join the first one.
         </p>
       ) : (
-        cards.slice(0, 2).map((b) => {
+        cards.slice(0, 2).map((b, i) => {
           const Icon = b.mode === "sea" ? Ship : Plane;
           return (
-            <article key={b.id} className="rounded-2xl bg-card p-6">
+            <article
+              key={b.id}
+              data-scroll-defer
+              style={{ "--d": i }}
+              className="reveal rounded-2xl border border-white/10 bg-linear-to-b from-white/7 to-white/2 p-6 sm:p-7"
+            >
               <p className="flex items-center gap-2 text-sm font-medium">
                 <Icon className="size-4" aria-hidden /> {BATCH_MODE_LABELS[b.mode]}
               </p>
@@ -45,7 +53,7 @@ export async function Cutoffs() {
           );
         })
       )}
-    </div>
+    </ScrollScope>
   );
 }
 
@@ -61,15 +69,19 @@ export function CutoffsSkeleton() {
 
 export function CutoffsSection({ children }: { children: React.ReactNode }) {
   return (
-    <section className="mx-auto max-w-5xl px-4 py-16">
-      <div className="mb-6 flex items-end justify-between gap-4">
-        <h2 className="display text-4xl sm:text-5xl">Next Shipment Cutoff</h2>
-        <Link href="/shipping" className="flex shrink-0 items-center gap-1 text-sm hover:underline">
-          Full Schedule <ChevronRight className="size-4" />
-        </Link>
-      </div>
+    <section className="mx-auto max-w-6xl px-4 py-12 sm:py-16">
+      <SectionHeading
+        eyebrow="Shipping"
+        title="Next Shipment Cutoff"
+        action={
+          <Link href="/shipping" className="group -ml-1 flex min-h-11 items-center gap-1 px-1 text-sm text-white/80 hover:text-white sm:ml-0 sm:min-h-0 sm:px-0">
+            Full Schedule
+            <ChevronRight className="size-4 transition-transform duration-300 group-hover:translate-x-0.5" />
+          </Link>
+        }
+      />
       {children}
-      <p className="mt-6 text-center text-sm text-muted-foreground">
+      <p data-scroll-defer className="reveal mx-auto mt-8 max-w-3xl text-center text-sm text-muted-foreground">
         Orders must reach the warehouse with all payments settled by the cutoff date to join that cycle. Anything that
         misses it moves to the next batch automatically.
       </p>

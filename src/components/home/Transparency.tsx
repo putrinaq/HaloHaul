@@ -1,4 +1,5 @@
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+import { SectionHeading } from "./SectionHeading";
 
 const ITEMS = [
   {
@@ -21,14 +22,31 @@ const ITEMS = [
 
 export function Transparency() {
   return (
-    <section className="mx-auto max-w-4xl px-4 py-16">
-      <h2 className="display text-4xl sm:text-5xl">Built on transparency</h2>
-      <p className="mt-2 text-muted-foreground">Nothing hidden, nothing bundled.</p>
-      <Accordion type="multiple" defaultValue={ITEMS.map((i) => i.title)} className="mt-6">
-        {ITEMS.map((item) => (
-          <AccordionItem key={item.title} value={item.title} className="border-white/30">
-            <AccordionTrigger className="text-lg font-semibold">{item.title}</AccordionTrigger>
-            <AccordionContent className="text-base text-white/85">{item.body}</AccordionContent>
+    <section className="mx-auto grid max-w-6xl gap-4 px-4 py-12 sm:py-16 lg:grid-cols-[5fr_7fr] lg:gap-16">
+      <div className="lg:sticky lg:top-32 lg:self-start">
+        <SectionHeading
+          eyebrow="Our promise"
+          title="Built on transparency"
+          lede="Nothing hidden, nothing bundled."
+          className="lg:mb-0"
+        />
+      </div>
+      <Accordion type="multiple" defaultValue={ITEMS.map((i) => i.title)} className="lg:pt-6">
+        {ITEMS.map((item, i) => (
+          <AccordionItem
+            key={item.title}
+            value={item.title}
+            data-scroll-defer
+            style={{ "--d": i }}
+            className="reveal border-white/15"
+          >
+            <AccordionTrigger className="py-6 text-lg font-semibold sm:text-xl">
+              <span className="flex items-baseline gap-4">
+                <span className="text-sm font-normal text-white/40 tabular-nums">0{i + 1}</span>
+                {item.title}
+              </span>
+            </AccordionTrigger>
+            <AccordionContent className="pb-6 pl-9 text-base text-white/75">{item.body}</AccordionContent>
           </AccordionItem>
         ))}
       </Accordion>

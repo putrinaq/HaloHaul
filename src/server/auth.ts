@@ -1,9 +1,11 @@
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
+import { APIError, createAuthMiddleware } from "better-auth/api";
 import { nextCookies } from "better-auth/next-js";
 import { magicLink, twoFactor } from "better-auth/plugins";
 import { eq } from "drizzle-orm";
 import { USER_ROLES } from "../domain/enums";
+import { checkPassword, cleanEmail, cleanName, type Cleaned } from "../domain/sanitize";
 import { getDb } from "../db/client";
 import { accounts, sessions, twoFactors, users, verifications } from "../db/schema";
 import { sendEmail } from "./email";
@@ -11,7 +13,45 @@ import { env } from "./env";
 
 type AuthDb = Parameters<typeof drizzleAdapter>[0];
 
-export function createAuth(db: AuthDb, opts: { baseURL: string; secret: string }) {
+const EMAIL_PATHS = new Set(["/sign-up/email", "/sign-in/email", "/sign-in/magic-link", "/request-password-reset"]);
+const NAME_PATHS = new Set(["/sign-up/email", "/update-user"]);
+const PASSWORD_PATHS = new Set(["/sign-up/email", "/sign-in/email"]);
+
+function accept(result: Cleaned): string {
+  if (!result.ok) throw new APIError("BAD_REQUEST", { message: result.error });
+  return result.value;
+}
+
+/**
+ * Server-side gate for everything a person types into the auth forms. Names
+ * and emails are cleaned (see domain/sanitize) and replaced in the request
+ * body; anything that still looks like markup or a script is refused before
+ * Better Auth touches the database. Passwords are only bounded, never changed.
+ */
+const sanitizeAuthInput = createAuthMiddleware(async (ctx) => {
+  const body = ctx.body as Record<string, unknown> | undefined;
+  if (!body || typeof body !== "object") return;
+  const path = ctx.path;
+  const cleaned: Record<string, unknown> = {};
+
+  if (EMAIL_PATHS.has(path)) cleaned.email = accept(cleanEmail(body.email));
+  if (NAME_PATHS.has(path) && (path === "/sign-up/email" || body.name !== undefined)) {
+    cleaned.name = accept(cleanName(body.name));
+  }
+  if (PASSWORD_PATHS.has(path)) accept(checkPassword(body.password, { forSignUp: path === "/sign-up/email" }));
+  // An `image` URL is never set from our forms; don't let one be smuggled in.
+  if (NAME_PATHS.has(path) && body.image !== undefined) throw new APIError("BAD_REQUEST", { message: "Unsupported field." });
+
+  if (Object.keys(cleaned).length === 0) return;
+  return { context: { body: { ...body, ...cleaned } } };
+});
+
+/**
+ * `nextCookies: false` for scripts (seed) that run outside Next.js: the worker
+ * image has no `next` package, and the plugin's after-hook only swallows
+ * "Cannot find module", not ESM's "Cannot find package".
+ */
+export function createAuth(db: AuthDb, opts: { baseURL: string; secret: string; nextCookies?: boolean }) {
   return betterAuth({
     appName: "HaloHaul",
     baseURL: opts.baseURL,
@@ -59,8 +99,9 @@ export function createAuth(db: AuthDb, opts: { baseURL: string; secret: string }
         "/request-password-reset": { window: 300, max: 3 },
       },
     },
+    hooks: { before: sanitizeAuthInput },
     advanced: {
-      // Caddy sets X-Forwarded-For and discards any client-supplied value.
+      // The reverse proxy (Nginx) overwrites X-Forwarded-For with the real client.
       ipAddress: { ipAddressHeaders: ["x-forwarded-for"] },
     },
     plugins: [
@@ -89,7 +130,7 @@ export function createAuth(db: AuthDb, opts: { baseURL: string; secret: string }
         },
       }),
       twoFactor({ issuer: "HaloHaul" }),
-      nextCookies(), // must stay last
+      ...(opts.nextCookies === false ? [] : [nextCookies()]), // must stay last
     ],
   });
 }

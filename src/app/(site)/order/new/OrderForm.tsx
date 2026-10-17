@@ -217,24 +217,42 @@ export function OrderForm(props: OrderFormProps) {
 
   return (
     <form onSubmit={onSubmit} noValidate className="space-y-8">
-      <ol className="flex gap-1.5" aria-label="Progress">
-        {STEPS.map((label, i) => (
-          <li key={label} className="flex-1">
-            <button
-              type="button"
-              disabled={i > step}
-              onClick={() => setStep(i)}
-              aria-current={i === step ? "step" : undefined}
-              className="w-full text-left disabled:cursor-default"
-            >
-              <span className={cn("block h-1 rounded-full", i <= step ? "bg-white" : "bg-white/15")} />
-              <span className={cn("mt-2 hidden text-xs sm:block", i === step ? "text-foreground" : "text-muted-foreground")}>
-                {label}
-              </span>
-            </button>
-          </li>
-        ))}
-      </ol>
+      <div>
+        {/* Phones hide the per-step labels, so say where you are in words. */}
+        <p className="mb-1 flex items-baseline justify-between text-sm sm:hidden" aria-hidden>
+          <span className="font-medium text-foreground">{STEPS[step]}</span>
+          <span className="text-muted-foreground tabular-nums">
+            Step {step + 1} of {STEPS.length}
+          </span>
+        </p>
+        <ol className="flex gap-1.5" aria-label="Progress">
+          {STEPS.map((label, i) => (
+            <li key={label} className="flex-1">
+              {/* The bar is 4px, but the button around it is a full 44px tap target. */}
+              <button
+                type="button"
+                disabled={i > step}
+                onClick={() => setStep(i)}
+                aria-current={i === step ? "step" : undefined}
+                aria-label={`Step ${i + 1}: ${label}`}
+                className="flex min-h-11 w-full flex-col justify-center text-left disabled:cursor-default sm:min-h-0"
+              >
+                <span
+                  className={cn(
+                    "block h-1 rounded-full transition-colors duration-500",
+                    i <= step ? "bg-white" : "bg-white/15",
+                  )}
+                />
+                <span
+                  className={cn("mt-2 hidden text-xs sm:block", i === step ? "text-foreground" : "text-muted-foreground")}
+                >
+                  {label}
+                </span>
+              </button>
+            </li>
+          ))}
+        </ol>
+      </div>
 
       {props.prefillNote ? (
         <p className="rounded-lg border border-white/15 bg-white/5 p-3 text-sm">{props.prefillNote}</p>
@@ -630,16 +648,17 @@ export function OrderForm(props: OrderFormProps) {
 
       {/* ---- navigation -------------------------------------------------- */}
       {step > 0 ? (
-        <div className="sticky bottom-0 -mx-4 flex gap-3 border-t border-white/10 bg-black/90 px-4 py-4 backdrop-blur">
+        <div className="sticky bottom-0 -mx-4 flex gap-3 border-t border-white/10 bg-black/90 px-4 pt-4 pb-[max(1rem,env(safe-area-inset-bottom))] backdrop-blur">
+
           <Button type="button" variant="outline" size="lg" className="h-12 flex-1" onClick={() => setStep((s) => s - 1)}>
             Back
           </Button>
           {step < STEPS.length - 1 ? (
-            <Button type="button" size="lg" className="h-12 flex-[2]" onClick={goNext}>
+            <Button type="button" size="lg" className="h-12 flex-2" onClick={goNext}>
               Continue
             </Button>
           ) : (
-            <Button type="submit" size="lg" className="h-12 flex-[2]" disabled={submitting}>
+            <Button type="submit" size="lg" className="h-12 flex-2" disabled={submitting}>
               {submitting ? "Submitting…" : "Submit request"}
             </Button>
           )}

@@ -1,3 +1,5 @@
+import { SectionHeading } from "./SectionHeading";
+
 const STEPS = [
   {
     title: "Submit a request",
@@ -23,19 +25,31 @@ const STEPS = [
 
 export function Process() {
   return (
-    <section className="mx-auto max-w-6xl px-4 py-16">
-      <h2 className="display text-4xl sm:text-5xl">The Process</h2>
-      <p className="mt-2 text-muted-foreground">Four steps, nothing hidden.</p>
-      <ol className="mt-8 grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
+    <section className="mx-auto max-w-6xl px-4 py-12 sm:py-16">
+      <SectionHeading eyebrow="How it works" title="The Process" lede="Four steps, nothing hidden." />
+      <ol className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
         {STEPS.map((s, i) => (
-          <li key={s.title} className="relative isolate flex aspect-[3/4] flex-col justify-between overflow-hidden rounded-2xl p-4 sm:p-5">
-            {/* eslint-disable-next-line @next/next/no-img-element -- pre-optimised static image */}
-            <img src={s.image} alt="" loading="lazy" className="absolute inset-0 -z-20 size-full object-cover" />
-            <div className="absolute inset-0 -z-10 bg-gradient-to-t from-black/85 via-black/20 to-black/10" />
-            <span className="display text-4xl text-white sm:text-5xl">{i + 1}</span>
+          <li
+            key={s.title}
+            data-scroll-defer
+            style={{ "--d": i }}
+            className="reveal group relative isolate flex aspect-3/4 flex-col justify-between overflow-hidden rounded-2xl p-4 sm:p-6"
+          >
+            {/* Oversized so the inner parallax never shows an edge. */}
+            <div data-scroll-defer data-scroll-speed="-0.04" className="absolute inset-x-0 top-[-12%] -z-20 h-[124%]">
+              {/* eslint-disable-next-line @next/next/no-img-element -- pre-optimised static image */}
+              <img
+                src={s.image}
+                alt=""
+                loading="lazy"
+                className="size-full object-cover transition-transform duration-1000 ease-(--ease-out-expo) group-hover:scale-105"
+              />
+            </div>
+            <div className="absolute inset-0 -z-10 bg-linear-to-t from-black/90 via-black/25 to-black/10" />
+            <span className="display text-4xl text-white/90 sm:text-6xl">0{i + 1}</span>
             <div>
-              <h3 className="text-base font-medium text-white underline underline-offset-4 sm:text-lg">{s.title}</h3>
-              <p className="mt-1 text-xs text-white/85 sm:text-sm">{s.body}</p>
+              <h3 className="text-base font-medium text-white sm:text-lg">{s.title}</h3>
+              <p className="mt-1.5 text-xs leading-relaxed text-white/75 sm:text-sm">{s.body}</p>
             </div>
           </li>
         ))}

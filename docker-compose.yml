@@ -1,4 +1,6 @@
-# Production stack for a 1 vCPU / 1 GB / 10 GB VPS (plus 2 GB swap).
+# Production stack for a small NAT VPS. Host Nginx is the reverse proxy (no Caddy,
+# since ports 80/443 aren't ours): the app is published only on 127.0.0.1:3000.
+# Nginx config: deploy/nginx/halohaul.conf.
 # The server only pulls and runs images; nothing is built here.
 #
 #   docker compose pull && docker compose up -d
@@ -75,9 +77,12 @@ services:
         condition: service_healthy
       migrate:
         condition: service_completed_successfully
+    # Host Nginx proxies to this. Loopback only: never reachable from outside.
+    ports:
+      - "127.0.0.1:3000:3000"
     mem_limit: 384m
     logging: *logging
-    networks: [internal, web]
+    networks: [internal]
 
   worker:
     image: *worker-image
@@ -96,32 +101,9 @@ services:
     logging: *logging
     networks: [internal]
 
-  caddy:
-    image: caddy:2.11-alpine
-    restart: unless-stopped
-    ports:
-      - "80:80"
-      - "443:443"
-      - "443:443/udp"
-    environment:
-      DOMAIN: ${DOMAIN:?set DOMAIN}
-      ACME_EMAIL: ${ACME_EMAIL:?set ACME_EMAIL}
-    volumes:
-      - ./Caddyfile:/etc/caddy/Caddyfile:ro
-      - caddy_data:/data
-      - caddy_config:/config
-    depends_on:
-      - app
-    mem_limit: 64m
-    logging: *logging
-    networks: [web]
-
 volumes:
   pgdata:
-  caddy_data:
-  caddy_config:
 
 networks:
-  # Postgres is reachable only from app/worker/migrate, never from Caddy or the host.
+  # Postgres is reachable only from app/worker/migrate, never from the host.
   internal:
-  web:

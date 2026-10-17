@@ -88,3 +88,56 @@ describe("auth", () => {
     expect(sentEmails[0]).toContain("to=aina@example.com");
   });
 });
+
+describe("auth input sanitising", () => {
+  // A distinct client IP per request keeps the sign-up rate limit (5 per 5 min) out of the way.
+  let ip = 0;
+  const signUp = (body: Record<string, unknown>) => {
+    const req = json(body);
+    req.headers.set("x-forwarded-for", `203.0.113.${++ip}`);
+    return auth.handler(req);
+  };
+
+  it.each(["<script>alert(1)</script>", "<img src=x onerror=alert(1)>", "javascript:alert(1)"])(
+    "refuses a sign-up whose name is %j",
+    async (name) => {
+      const email = `x${Math.random().toString(36).slice(2)}@example.com`;
+      const res = await signUp({ name, email, password: "correct-horse-battery" });
+      expect(res.status).toBe(400);
+      const rows = await db.select().from(users).where(eq(users.email, email));
+      expect(rows).toHaveLength(0);
+    },
+  );
+
+  it("refuses a script-shaped email", async () => {
+    const res = await signUp({ name: "Eve", email: "<svg/onload=alert(1)>@x.com", password: "correct-horse-battery" });
+    expect(res.status).toBe(400);
+  });
+
+  it("stores the cleaned name and email, not what was sent", async () => {
+    const res = await signUp({
+      name: "  Nur​   Aisyah ",
+      email: "  Nur.Aisyah@Example.COM ",
+      password: "correct-horse-battery",
+    });
+    expect(res.status).toBe(200);
+    const [row] = await db.select().from(users).where(eq(users.email, "nur.aisyah@example.com"));
+    expect(row.name).toBe("Nur Aisyah");
+  });
+
+  it("refuses an image URL smuggled into sign-up", async () => {
+    const res = await signUp({
+      name: "Mallory",
+      email: "mallory2@example.com",
+      password: "correct-horse-battery",
+      image: "javascript:alert(1)",
+    });
+    expect(res.status).toBe(400);
+  });
+
+  it("applies to server-side calls too", async () => {
+    await expect(
+      auth.api.signUpEmail({ body: { name: "<b>x</b>", email: "server@example.com", password: "correct-horse-battery" } }),
+    ).rejects.toThrow();
+  });
+});

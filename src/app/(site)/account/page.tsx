@@ -34,7 +34,7 @@ async function Account() {
   return (
     <div className="mt-8 space-y-10">
       <section className="space-y-4">
-        <div className="flex items-baseline justify-between gap-4">
+        <div className="flex flex-col gap-1 sm:flex-row sm:items-baseline sm:justify-between sm:gap-4">
           <h2 className="text-xl font-medium">Contact details</h2>
           <p className="truncate text-sm text-muted-foreground">{user.email}</p>
         </div>
@@ -57,10 +57,10 @@ async function Account() {
       </section>
 
       <section className="space-y-4">
-        <div className="flex items-baseline justify-between">
+        <div className="flex items-center justify-between">
           <h2 className="text-xl font-medium">Order history</h2>
-          <Link href="/orders" className="text-sm underline underline-offset-4">
-            See all
+          <Link href="/orders" className="-mr-2 flex min-h-11 items-center px-2 text-sm">
+            <span className="link-underline">See all</span>
           </Link>
         </div>
         {orders.length === 0 ? (
@@ -69,7 +69,7 @@ async function Account() {
           <ul className="divide-y divide-white/10 overflow-hidden rounded-2xl bg-card">
             {orders.slice(0, 5).map((o) => (
               <li key={o.id}>
-                <Link href={`/orders/${o.id}`} className="flex items-center gap-3 p-4 hover:bg-white/5">
+                <Link href={`/orders/${o.id}`} className="flex items-center gap-3 p-4 hover:bg-white/5 active:bg-white/10">
                   <span className="min-w-0 flex-1 truncate">
                     <span className="text-muted-foreground">{orderNo(o.id)}</span> {o.itemName}
                     <span className="block text-xs text-muted-foreground">{fmtDateShort(o.createdAt)}</span>

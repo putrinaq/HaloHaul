@@ -4,7 +4,16 @@ import { cn } from "@/lib/utils";
 export function LogoMark({ className }: { className?: string }) {
   return (
     <svg viewBox="0 0 32 36" fill="none" aria-hidden className={cn("h-7 w-auto", className)}>
-      <ellipse cx="16" cy="3.5" rx="7.5" ry="2" stroke="currentColor" strokeWidth="1.8" />
+      {/* The halo lifts when a parent marked group/logo is hovered (the header link). */}
+      <ellipse
+        cx="16"
+        cy="3.5"
+        rx="7.5"
+        ry="2"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        className="transition-transform duration-500 ease-(--ease-out-expo) group-hover/logo:-translate-y-0.5"
+      />
       <path
         d="M16 9 28 15.5v13L16 35 4 28.5v-13L16 9Z"
         stroke="currentColor"

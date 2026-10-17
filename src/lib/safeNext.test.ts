@@ -10,4 +10,9 @@ describe("safeNext", () => {
       expect(safeNext(bad)).toBe("/orders");
     }
   });
+  it("rejects backslashes and control characters anywhere in the path", () => {
+    for (const bad of ["/orders\\..\\\\evil.com", "/orders\n/x", "/a\u0000b", `/${"a".repeat(600)}`]) {
+      expect(safeNext(bad)).toBe("/orders");
+    }
+  });
 });

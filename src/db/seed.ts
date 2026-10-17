@@ -69,7 +69,7 @@ async function main() {
     if (adminEmail && adminPassword) {
       const [existing] = await db.select().from(users).where(eq(users.email, adminEmail));
       if (!existing) {
-        const auth = createAuth(db, { baseURL: e.APP_URL, secret: e.BETTER_AUTH_SECRET });
+        const auth = createAuth(db, { baseURL: e.APP_URL, secret: e.BETTER_AUTH_SECRET, nextCookies: false });
         await auth.api.signUpEmail({
           body: { name: process.env.ADMIN_NAME ?? "Admin", email: adminEmail, password: adminPassword },
         });
@@ -101,7 +101,7 @@ async function seedDemo(db: ReturnType<typeof createDb>, e: ReturnType<typeof en
   const email = "student@example.com";
   let [student] = await db.select().from(users).where(eq(users.email, email));
   if (!student) {
-    const auth = createAuth(db, { baseURL: e.APP_URL, secret: e.BETTER_AUTH_SECRET });
+    const auth = createAuth(db, { baseURL: e.APP_URL, secret: e.BETTER_AUTH_SECRET, nextCookies: false });
     await auth.api.signUpEmail({ body: { name: "Ahmad Nazri", email, password: "demo-password-123" } });
     [student] = await db.select().from(users).where(eq(users.email, email));
     await db.insert(customerProfiles).values({
