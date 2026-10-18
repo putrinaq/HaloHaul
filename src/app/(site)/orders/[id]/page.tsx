@@ -6,14 +6,20 @@ import { QuoteBreakdown } from "@/components/order/QuoteBreakdown";
 import { StatusBadge } from "@/components/order/StatusBadge";
 import { Timeline } from "@/components/order/Timeline";
 import { getDb } from "@/db/client";
-import { getCategory } from "@/domain/categories";
+import { describeDetails } from "@/domain/categorySchema";
 import { PATH_LABELS, PLATFORM_LABELS, SHIPPING_MODE_LABELS, STATUS_LABELS } from "@/domain/labels";
 import { fmtDate, fmtDateShort, formatMyr, orderNo } from "@/lib/format";
 import { getSettings } from "@/server/data/catalog";
+import { getCatalog } from "@/server/data/categories";
 import { getOrderForCustomer, type CustomerOrderDetail } from "@/server/data/orders";
 import { getSessionUser } from "@/server/session";
 import { getPhotoStore } from "@/server/storage";
-import { ownPhotoUrl } from "@/server/photos";
+import { GET_EXPIRES_S, isAdminImageKey, ownPhotoUrl, thumbKey } from "@/server/photos";
+import { needsUpfrontFee } from "@/domain/adminQueue";
+import type { PaymentPurpose } from "@/domain/enums";
+import { upfrontFee } from "@/domain/fees";
+import { isPrePayment } from "@/domain/orderStateMachine";
+import { CancelOrder, OptionPicker, PayPanel, QuoteResponse, ReplyForm } from "./OrderActions";
 
 export const metadata: Metadata = { title: "Order" };
 
@@ -43,7 +49,7 @@ async function OrderDetail({
 
   const orderId = /^\d{1,10}$/.test(id) ? Number(id) : NaN;
   const db = getDb();
-  const [detail, settings] = await Promise.all([getOrderForCustomer(db, user.id, orderId), getSettings(db)]);
+  const [detail, settings, catalog] = await Promise.all([getOrderForCustomer(db, user.id, orderId), getSettings(db), getCatalog(db)]);
   // Someone else's order looks exactly like a missing one.
   if (!detail) notFound();
   const { order, history, quote, balance, batch } = detail;
@@ -53,7 +59,31 @@ async function OrderDetail({
     ? (await Promise.all(order.referencePhotoKeys.map((k) => ownPhotoUrl(store, user.id, k)))).filter((u): u is string => !!u)
     : [];
   const held = order.restrictedFlag && !order.restrictedClearedAt && order.status === "submitted";
-  const rerouteNote = history.find((h) => h.toStatus === "submitted" && h.note)?.note;
+  const signed = async (key: string | null, thumb = false) =>
+    store && key && isAdminImageKey(key) ? store.presignGet(thumb ? thumbKey(key) : key, GET_EXPIRES_S) : null;
+
+  // What the student can do right now.
+  const question = order.status === "needs_info" ? (history.findLast((h) => h.toStatus === "needs_info")?.note ?? null) : null;
+  const showOptions = order.status === "sourcing" && detail.options.length > 0;
+  const options = showOptions
+    ? await Promise.all(detail.options.map(async (o) => ({ ...o, photoUrl: await signed(o.photoKey, true) })))
+    : [];
+  const fee = upfrontFee(order.pathType, settings);
+  const pay: { purpose: PaymentPurpose; title: string; amountSen: number } | null =
+    needsUpfrontFee(order) && !order.feePaidAt && (order.status === "submitted" || order.status === "sourcing") && fee
+      ? { purpose: "upfront_fee", title: "Pay the search fee to start", amountSen: balance.owedSen || fee.amountSen }
+      : order.status === "awaiting_payment" && balance.owedSen > 0
+        ? { purpose: "order", title: "Pay for your order", amountSen: balance.owedSen }
+        : order.shippingBalanceDue && balance.owedSen > 0
+          ? { purpose: "balance", title: "Pay the shipping balance", amountSen: balance.owedSen }
+          : null;
+  const ofPurpose = pay ? detail.payments.filter((p) => p.purpose === pay.purpose) : [];
+  const waitingProof = ofPurpose.find((p) => p.status === "pending") ?? null;
+  const lastRejected = ofPurpose.find((p) => p.status === "failed");
+  const qrUrl = pay ? await signed(settings.store.duitnowQrKey) : null;
+  const canCancel = isPrePayment(order.status) || order.status === "paid";
+  // Only the very first history row can carry the reroute note.
+  const rerouteNote = history.find((h) => h.fromStatus === null && h.toStatus === "submitted" && h.note)?.note;
 
   return (
     <div className="mt-6 space-y-6">
@@ -84,11 +114,38 @@ async function OrderDetail({
         <Notice tone="warning">A shipping balance is due. Your parcel is released once it&apos;s settled.</Notice>
       ) : null}
 
+      {question !== null ? <ReplyForm orderId={order.id} question={question} /> : null}
+      {showOptions ? <OptionPicker orderId={order.id} options={options} /> : null}
+      {order.status === "quote_sent" && quote ? (
+        <section className="space-y-4">
+          <QuoteBreakdown quote={quote} />
+          <QuoteResponse orderId={order.id} totalLabel={formatMyr(quote.totalMaxSen)} feeKept={needsUpfrontFee(order)} />
+        </section>
+      ) : null}
+      {pay ? (
+        <PayPanel
+          orderId={order.id}
+          purpose={pay.purpose}
+          title={pay.title}
+          amountDueSen={pay.amountSen}
+          qrUrl={qrUrl}
+          note={settings.store.paymentNote}
+          waiting={waitingProof ? { amountSen: waitingProof.amountSen } : null}
+          rejectedReason={!waitingProof && lastRejected ? lastRejected.rejectionReason : null}
+          uploadsEnabled={store !== null}
+        />
+      ) : null}
+
       <div className="grid gap-6 md:grid-cols-[1fr_18rem]">
         <div className="space-y-6">
           <Timeline status={order.status} mode={order.shippingMode} history={history} />
-          {quote ? <QuoteBreakdown quote={quote} /> : null}
-          <Details detail={detail} photos={photos} />
+          {quote && order.status !== "quote_sent" ? <QuoteBreakdown quote={quote} /> : null}
+          <Details
+            detail={detail}
+            photos={photos}
+            rows={detail.category ? describeDetails(detail.category.definition, catalog.measurements, order.details) : []}
+          />
+          {canCancel ? <CancelOrder orderId={order.id} paid={order.status === "paid"} /> : null}
         </div>
 
         <aside className="space-y-4 text-sm">
@@ -138,14 +195,16 @@ async function OrderDetail({
   );
 }
 
-function Details({ detail, photos }: { detail: CustomerOrderDetail; photos: string[] }) {
-  const { order } = detail;
-  let category: ReturnType<typeof getCategory> | null = null;
-  try {
-    category = getCategory(order.category, order.categorySchemaVersion);
-  } catch {
-    category = null;
-  }
+function Details({
+  detail,
+  photos,
+  rows,
+}: {
+  detail: CustomerOrderDetail;
+  photos: string[];
+  rows: Array<{ key: string; label: string; value: string }>;
+}) {
+  const { order, category } = detail;
   return (
     <section className="rounded-2xl bg-card p-5 text-sm">
       <h2 className="font-medium">Your request</h2>
@@ -169,24 +228,18 @@ function Details({ detail, photos }: { detail: CustomerOrderDetail; photos: stri
         {category ? (
           <>
             <dt className="text-muted-foreground">Category</dt>
-            <dd>{category.label}</dd>
+            <dd>{category.category.name}</dd>
           </>
         ) : null}
         {order.variantText ? (
           <>
-            <dt className="text-muted-foreground">{category?.variantRequired?.label ?? "Option"}</dt>
+            <dt className="text-muted-foreground">{category?.definition.option?.label ?? "Option"}</dt>
             <dd>{order.variantText}</dd>
           </>
         ) : null}
-        {category?.fields.map((f) =>
-          order.details[f.key] !== undefined ? (
-            <FragmentRow
-              key={f.key}
-              label={f.input === "number" && f.unit ? `${f.label} (${f.unit})` : f.label}
-              value={String(order.details[f.key])}
-            />
-          ) : null,
-        )}
+        {rows.map((r) => (
+          <FragmentRow key={r.key} label={r.label} value={r.value} />
+        ))}
         {order.remarks ? (
           <>
             <dt className="text-muted-foreground">Remarks</dt>

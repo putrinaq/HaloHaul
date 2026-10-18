@@ -1,24 +1,36 @@
 import "server-only";
 import { randomUUID } from "node:crypto";
 import type { Sharp, SharpOptions } from "sharp";
-import { escapeRe, UUID_RE } from "./photos";
+import { escapeRe, thumbKey, UUID_RE } from "./photos";
 import type { ObjectStore } from "./storage";
 
-export { GET_EXPIRES_S, isOwnPhotoKey, ownPhotoUrl } from "./photos";
+export { GET_EXPIRES_S, isOwnPhotoKey, ownPhotoUrl, thumbKey } from "./photos";
 
 // Photo uploads:
 //   1. presign: the browser gets a short-lived PUT URL for incoming/{user}/{uuid}
 //      (type and size are signed into it)
 //   2. the browser uploads straight to R2
 //   3. finalize: the server checks the bytes really are an image, re-encodes
-//      them with sharp (dropping EXIF/GPS), stores photos/{user}/{uuid}.webp and
-//      deletes the original
+//      them with sharp (max 1600px, WebP, EXIF/GPS dropped) plus a 400px
+//      thumbnail, stores them and deletes the original. Students' photos go to
+//      photos/{user}/{uuid}.webp; admin images to admin/{purpose}/{uuid}.webp.
 // Configure an R2 lifecycle rule that expires incoming/ after 1 day.
 
 export const UPLOAD_MAX_BYTES = 10 * 1024 * 1024;
 export const ALLOWED_UPLOAD_TYPES = ["image/jpeg", "image/png", "image/webp"] as const;
 const MAX_INPUT_PIXELS = 40_000_000; // ~40 MP; refuses decompression bombs
-const MAX_EDGE_PX = 2048;
+const MAX_EDGE_PX = 1600;
+const THUMB_EDGE_PX = 400;
+
+/** What an upload is for: decides where it's stored and how it's encoded. */
+export const STUDENT_UPLOAD_PURPOSES = ["reference", "payment_proof"] as const;
+export const ADMIN_UPLOAD_PURPOSES = ["help", "sourcing", "qc", "product", "store"] as const;
+export type UploadPurpose = (typeof STUDENT_UPLOAD_PURPOSES)[number] | (typeof ADMIN_UPLOAD_PURPOSES)[number];
+
+/** Screenshots (payment proofs, the DuitNow QR) keep more detail so text stays legible. */
+function qualityFor(purpose: UploadPurpose): number {
+  return purpose === "payment_proof" || purpose === "store" ? 88 : 80;
+}
 const PUT_EXPIRES_S = 300;
 
 type SharpFactory = (input: Uint8Array, options?: SharpOptions) => Sharp;
@@ -73,8 +85,11 @@ export async function createUploadUrl(
   return { key, url, headers: { "content-type": file.contentType } };
 }
 
-/** Decode, auto-rotate, shrink and re-encode. Output carries no EXIF/GPS. */
-export async function processImage(bytes: Uint8Array): Promise<Buffer> {
+/**
+ * Decode, auto-rotate, shrink (never enlarge) and re-encode as WebP, plus a
+ * 400px thumbnail for cards and lists. Output carries no EXIF/GPS.
+ */
+export async function processImage(bytes: Uint8Array, quality = 80): Promise<{ full: Buffer; thumb: Buffer }> {
   const sharp = await loadSharp();
   let format: string | undefined;
   try {
@@ -86,17 +101,27 @@ export async function processImage(bytes: Uint8Array): Promise<Buffer> {
     throw new UploadError("Upload a JPEG, PNG or WebP image.");
   }
   try {
-    return await sharp(bytes, { limitInputPixels: MAX_INPUT_PIXELS, failOn: "error" })
+    const full = await sharp(bytes, { limitInputPixels: MAX_INPUT_PIXELS, failOn: "error" })
       .rotate() // apply EXIF orientation before the metadata is dropped
       .resize({ width: MAX_EDGE_PX, height: MAX_EDGE_PX, fit: "inside", withoutEnlargement: true })
-      .webp({ quality: 80 })
+      .webp({ quality })
       .toBuffer();
+    const thumb = await sharp(full)
+      .resize({ width: THUMB_EDGE_PX, height: THUMB_EDGE_PX, fit: "inside", withoutEnlargement: true })
+      .webp({ quality: 75 })
+      .toBuffer();
+    return { full, thumb };
   } catch {
     throw new UploadError("That image couldn't be processed. Try a different photo.");
   }
 }
 
-export async function finalizeUpload(store: ObjectStore, userId: string, incomingKey: string): Promise<{ key: string }> {
+export async function finalizeUpload(
+  store: ObjectStore,
+  userId: string,
+  incomingKey: string,
+  purpose: UploadPurpose = "reference",
+): Promise<{ key: string }> {
   assertSafeUserId(userId);
   if (!isOwnIncomingKey(userId, incomingKey)) throw new UploadError("Unknown upload.", 403);
 
@@ -111,9 +136,11 @@ export async function finalizeUpload(store: ObjectStore, userId: string, incomin
   if (!bytes) throw new UploadError("Upload not found. Try again.", 404);
 
   try {
-    const webp = await processImage(bytes);
-    const key = `photos/${userId}/${randomUUID()}.webp`;
-    await store.put(key, webp, "image/webp");
+    const { full, thumb } = await processImage(bytes, qualityFor(purpose));
+    const admin = (ADMIN_UPLOAD_PURPOSES as readonly string[]).includes(purpose);
+    const key = admin ? `admin/${purpose}/${randomUUID()}.webp` : `photos/${userId}/${randomUUID()}.webp`;
+    await store.put(key, full, "image/webp");
+    await store.put(thumbKey(key), thumb, "image/webp");
     return { key };
   } finally {
     await store.delete(incomingKey);

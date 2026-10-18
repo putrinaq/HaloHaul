@@ -1,13 +1,16 @@
 import "server-only";
-import { customerProfiles, orders, orderStatusHistory } from "../../db/schema";
+import { customerProfiles, ledgerEntries, orders, orderStatusHistory } from "../../db/schema";
 import type { Db } from "../../db/types";
-import { getCategory, mergeSavedMeasurements } from "../../domain/categories";
+import { findCategory, isShippable } from "../../domain/catalog";
+import { hasMeasurements, mergeMeasurements } from "../../domain/categorySchema";
+import { upfrontFee } from "../../domain/fees";
 import { parseFxRate } from "../../domain/money";
 import { validateOrderInput } from "../../domain/orderInput";
 import { detailStrings, matchRestricted, restrictedReason } from "../../domain/restricted";
 import { scaleParcel } from "../../domain/shipping";
 import { buildShippingSnapshot, shippingOptions } from "../../domain/shippingOptions";
 import { getNextCutoffs, getRestrictedRules, getSettings } from "../data/catalog";
+import { getCatalog } from "../data/categories";
 import { getProfile } from "../data/customer";
 import { isOwnPhotoKey } from "../photos";
 
@@ -18,15 +21,22 @@ export type SubmitOrderResult =
 /**
  * Validates and stores a new order for `userId` (the session user — never an
  * id from the request). Restricted matches don't block submission; they hold
- * the order for admin review before any quote goes out.
+ * the order for admin review before any quote goes out. Reverse-search and
+ * consultation orders get their upfront fee posted to the ledger.
  */
 export async function submitOrder(db: Db, userId: string, raw: unknown, now = new Date()): Promise<SubmitOrderResult> {
-  const result = validateOrderInput(raw);
+  const catalog = await getCatalog(db);
+  const result = validateOrderInput(raw, catalog);
   if (!result.ok) return { ok: false, fieldErrors: result.fieldErrors };
   const input = result.value;
 
   if (!input.referencePhotoKeys.every((k) => isOwnPhotoKey(userId, k))) {
     return { ok: false, fieldErrors: { referencePhotoKeys: "One of the photos couldn't be found. Upload it again." } };
+  }
+
+  const category = findCategory(catalog, input.category);
+  if (!category || category.versionId !== input.categoryVersionId) {
+    return { ok: false, fieldErrors: { category: "This category was just updated. Check the form and try again." } };
   }
 
   const [settings, rules, cutoffs, profile] = await Promise.all([
@@ -35,7 +45,6 @@ export async function submitOrder(db: Db, userId: string, raw: unknown, now = ne
     getNextCutoffs(db, now),
     getProfile(db, userId),
   ]);
-  const category = getCategory(input.category, input.categorySchemaVersion);
   const fxRate = parseFxRate(settings.fx.defaultMyrPerCny);
 
   const options = shippingOptions({
@@ -59,12 +68,12 @@ export async function submitOrder(db: Db, userId: string, raw: unknown, now = ne
     rules,
   );
 
-  const parcel = category.shippable ? scaleParcel(category.defaultParcel, input.quantity) : null;
+  const parcel = isShippable(category) ? scaleParcel(category.defaultParcel, input.quantity) : null;
 
+  const saved = profile?.savedMeasurements ?? {};
   const savedMeasurements =
-    input.saveMeasurements && category.savesToProfile
-      ? mergeSavedMeasurements(profile?.savedMeasurements ?? {}, category.key, input.details)
-      : (profile?.savedMeasurements ?? {});
+    input.saveMeasurements && hasMeasurements(category.definition) ? mergeMeasurements(saved, category.definition, input.details) : saved;
+  const fee = upfrontFee(input.pathType, settings);
 
   const orderId = await db.transaction(async (tx) => {
     const [order] = await tx
@@ -76,8 +85,7 @@ export async function submitOrder(db: Db, userId: string, raw: unknown, now = ne
         platform: input.platform,
         productUrl: input.productUrl,
         referencePhotoKeys: input.referencePhotoKeys,
-        category: category.key,
-        categorySchemaVersion: category.version,
+        categoryVersionId: category.versionId,
         details: input.details,
         variantText: input.variantText,
         quantity: input.quantity,
@@ -103,6 +111,17 @@ export async function submitOrder(db: Db, userId: string, raw: unknown, now = ne
       actorId: userId,
       note: input.rerouted ? "Link was a content post — routed to photo search." : null,
     });
+
+    if (fee && fee.amountSen > 0) {
+      await tx.insert(ledgerEntries).values({
+        orderId: order.id,
+        customerId: userId,
+        type: fee.type,
+        amountSen: fee.amountSen,
+        reference: "upfront fee",
+        createdBy: userId,
+      });
+    }
 
     const profileValues = {
       displayName: input.contact.displayName,

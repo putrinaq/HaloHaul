@@ -1,0 +1,60 @@
+import {
+  Baby,
+  BookOpen,
+  Car,
+  Download,
+  Dumbbell,
+  Eye,
+  Footprints,
+  Gamepad2,
+  Gem,
+  Gift,
+  Glasses,
+  Headphones,
+  Heart,
+  House,
+  Laptop,
+  Package,
+  Palette,
+  Ruler,
+  Shirt,
+  ShoppingBag,
+  Smartphone,
+  Sparkle,
+  Utensils,
+  Watch,
+  type LucideIcon,
+} from "lucide-react";
+import type { CategoryIcon as IconName } from "@/domain/categoryIcons";
+
+const ICONS: Record<IconName, LucideIcon> = {
+  Package,
+  Shirt,
+  Ruler,
+  Sparkle,
+  Heart,
+  Footprints,
+  Gem,
+  Glasses,
+  Eye,
+  Palette,
+  Smartphone,
+  Laptop,
+  Headphones,
+  Watch,
+  Download,
+  Gamepad2,
+  BookOpen,
+  Baby,
+  Dumbbell,
+  Home: House,
+  Utensils,
+  Car,
+  Gift,
+  ShoppingBag,
+};
+
+export function CategoryIcon({ name, className }: { name: string; className?: string }) {
+  const Icon = ICONS[name as IconName] ?? Package;
+  return <Icon className={className} strokeWidth={1.5} aria-hidden />;
+}

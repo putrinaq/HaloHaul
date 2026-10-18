@@ -11,6 +11,8 @@ const envSchema = z.object({
 
   APP_URL: z.url(),
   BETTER_AUTH_SECRET: z.string().min(32, "BETTER_AUTH_SECRET must be at least 32 characters"),
+  /** Admin pages require 2FA. "false" turns that off outside production only (see adminNeedsTwoFactor). */
+  ADMIN_REQUIRE_2FA: z.stringbool().default(true),
 
   RESEND_API_KEY: z.string().optional(),
   EMAIL_FROM: z.string().default("HaloHaul <hello@halohaul.com>"),

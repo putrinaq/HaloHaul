@@ -3,6 +3,7 @@ import { headers } from "next/headers";
 import { notFound, redirect } from "next/navigation";
 import type { UserRole } from "../domain/enums";
 import { getAuth } from "./auth";
+import { env } from "./env";
 
 export interface SessionUser {
   id: string;
@@ -43,6 +44,23 @@ export async function requireAdmin(): Promise<SessionUser> {
   const user = await getSessionUser();
   if (!user) redirect("/sign-in?next=/admin");
   if (user.role !== "admin") notFound();
-  if (!user.twoFactorEnabled) redirect("/admin/setup-2fa");
+  if (!user.twoFactorEnabled && adminNeedsTwoFactor()) redirect("/admin/setup-2fa");
   return user;
+}
+
+/** For server actions: the admin (with 2FA on, when required) behind this request, or null. Never redirects. */
+export async function adminActor(): Promise<SessionUser | null> {
+  const user = await getSessionUser();
+  if (user?.role !== "admin") return null;
+  return user.twoFactorEnabled || !adminNeedsTwoFactor() ? user : null;
+}
+
+/**
+ * True unless ADMIN_REQUIRE_2FA=false in a non-production environment. In
+ * production 2FA is always required, whatever the env says. An admin who has
+ * turned 2FA on is still asked for a code at sign-in either way (Better Auth).
+ */
+export function adminNeedsTwoFactor(): boolean {
+  const e = env();
+  return e.NODE_ENV === "production" || e.ADMIN_REQUIRE_2FA;
 }

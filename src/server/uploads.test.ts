@@ -1,7 +1,7 @@
 import sharp from "sharp";
 import { describe, expect, it } from "vitest";
 import { MemoryStore } from "./storage";
-import { createUploadUrl, finalizeUpload, isOwnPhotoKey, ownPhotoUrl, processImage, UPLOAD_MAX_BYTES, UploadError } from "./uploads";
+import { createUploadUrl, finalizeUpload, isOwnPhotoKey, ownPhotoUrl, processImage, thumbKey, UPLOAD_MAX_BYTES, UploadError } from "./uploads";
 
 const ALICE = "aliceUserId0001";
 const BOB = "bobUserId000002";
@@ -60,12 +60,31 @@ describe("finalizeUpload", () => {
     expect(meta.width).toBe(64);
   });
 
-  it("shrinks large images to 2048px on the long edge", async () => {
+  it("shrinks large images to 1600px on the long edge, with a 400px thumbnail", async () => {
     const store = new MemoryStore();
     const big = await sharp({ create: { width: 3000, height: 1500, channels: 3, background: "#123" } }).png().toBuffer();
     const { key } = await finalizeUpload(store, ALICE, await upload(store, ALICE, big, "image/png"));
     const meta = await sharp(store.objects.get(key)!.body).metadata();
-    expect([meta.width, meta.height]).toEqual([2048, 1024]);
+    expect([meta.width, meta.height]).toEqual([1600, 800]);
+    const thumb = await sharp(store.objects.get(thumbKey(key))!.body).metadata();
+    expect([thumb.format, thumb.width, thumb.height]).toEqual(["webp", 400, 200]);
+  });
+
+  it("never upscales small images", async () => {
+    const store = new MemoryStore();
+    const { key } = await finalizeUpload(store, ALICE, await upload(store, ALICE, await jpegWithExif()));
+    expect((await sharp(store.objects.get(thumbKey(key))!.body).metadata()).width).toBe(64);
+  });
+
+  it("files admin images under admin/{purpose}/ and keeps proofs sharper", async () => {
+    const store = new MemoryStore();
+    const noisy = await sharp({ create: { width: 800, height: 800, channels: 3, background: "#888", noise: { type: "gaussian", mean: 128, sigma: 40 } } }).png().toBuffer();
+    const qc = await finalizeUpload(store, ALICE, await upload(store, ALICE, noisy, "image/png"), "qc");
+    expect(qc.key).toMatch(/^admin\/qc\/[0-9a-f-]{36}\.webp$/);
+    const proof = await finalizeUpload(store, ALICE, await upload(store, ALICE, noisy, "image/png"), "payment_proof");
+    expect(isOwnPhotoKey(ALICE, proof.key)).toBe(true);
+    // Quality 88 for proofs vs 80 for other photos: same pixels, bigger file.
+    expect(store.objects.get(proof.key)!.body.byteLength).toBeGreaterThan(store.objects.get(qc.key)!.body.byteLength);
   });
 
   it("rejects files that aren't really images, and deletes them", async () => {

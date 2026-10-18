@@ -21,7 +21,8 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { currentCategories, getCategory, prefillFromSaved, type SavedMeasurements } from "@/domain/categories";
+import { findCategory, type Catalog } from "@/domain/catalog";
+import { hasMeasurements, prefillMeasurements, resolveFields, type SavedMeasurements } from "@/domain/categorySchema";
 import type { BatchShippingMode, ConditionPreference, PathType, ShippingMode } from "@/domain/enums";
 import { upfrontFee, coordinationFeeSen, deliveryFeeSen } from "@/domain/fees";
 import { PLATFORM_LABELS } from "@/domain/labels";
@@ -37,6 +38,10 @@ import { submitOrderAction } from "./actions";
 export interface OrderFormProps {
   initial: Partial<OrderFormInput>;
   settings: Settings;
+  /** Published categories + measurement library, from the server. */
+  catalog: Catalog;
+  /** Presigned URLs for "how to measure" images, by image key. */
+  helpImageUrls: Record<string, string>;
   nextCutoffs: Partial<Record<BatchShippingMode, string>>;
   savedMeasurements: SavedMeasurements;
   uploadsEnabled: boolean;
@@ -78,16 +83,25 @@ function setPath(target: Record<string, unknown>, path: string, value: unknown) 
 }
 
 /** React Hook Form resolver backed by the shared domain validator (the server runs the same). */
-const resolver: Resolver<OrderFormInput> = async (values) => {
-  const r = validateOrderInput(values);
-  if (r.ok) return { values, errors: {} };
-  const errors: Record<string, unknown> = {};
-  for (const [path, message] of Object.entries(r.fieldErrors)) setPath(errors, path, { type: "validate", message });
-  return { values: {}, errors: errors as FieldErrors<OrderFormInput> };
-};
+function makeResolver(catalog: Catalog): Resolver<OrderFormInput> {
+  return async (values) => {
+    const r = validateOrderInput(values, catalog);
+    if (r.ok) return { values, errors: {} };
+    const errors: Record<string, unknown> = {};
+    for (const [path, message] of Object.entries(r.fieldErrors)) setPath(errors, path, { type: "validate", message });
+    return { values: {}, errors: errors as FieldErrors<OrderFormInput> };
+  };
+}
+
+/** Saved measurements for this category's measurement fields. */
+function prefillFor(catalog: Catalog, key: string | undefined, saved: SavedMeasurements): Record<string, unknown> {
+  const c = findCategory(catalog, key);
+  return c ? prefillMeasurements(c.definition, saved) : {};
+}
 
 export function OrderForm(props: OrderFormProps) {
-  const { settings, savedMeasurements, uploadsEnabled, nowMs } = props;
+  const { settings, catalog, savedMeasurements, uploadsEnabled, nowMs } = props;
+  const resolver = useMemo(() => makeResolver(catalog), [catalog]);
   const router = useRouter();
   const [step, setStep] = useState(props.initial.productUrl || props.initial.pathType ? 1 : 0);
   const [formError, setFormError] = useState<string | null>(null);
@@ -111,7 +125,7 @@ export function OrderForm(props: OrderFormProps) {
       saveMeasurements: true,
       acceptTerms: false,
       ...props.initial,
-      details: props.initial.category ? prefillFromSaved(props.initial.category, savedMeasurements) : {},
+      details: prefillFor(catalog, props.initial.category, savedMeasurements),
       contact: { displayName: "", phone: "", campus: "", ...props.initial.contact },
     },
   });
@@ -120,22 +134,24 @@ export function OrderForm(props: OrderFormProps) {
   const reg = register as unknown as UseFormRegister<FieldValues>;
   const err = (name: string) => get(errors, name)?.message as string | undefined;
 
-  const [pathType, productUrl, categoryKey, quantity, shippingMode, fulfilment, photos, freeShip] = useWatch({
+  const [pathType, productUrl, categoryKey, quantity, shippingMode, fulfilment, photos, freeShip, details] = useWatch({
     control,
-    name: ["pathType", "productUrl", "category", "quantity", "shippingMode", "fulfilment", "referencePhotoKeys", "domesticFreeShipping"],
+    name: ["pathType", "productUrl", "category", "quantity", "shippingMode", "fulfilment", "referencePhotoKeys", "domesticFreeShipping", "details"],
   });
 
   // Live link check: platform, and RedNote/Douyin posts rerouted to photo search.
   const link = useMemo(() => (productUrl?.trim() ? validateProductLink(productUrl) : null), [productUrl]);
   const effectivePath: PathType = link?.ok ? routeForLink(pathType, link).pathType : pathType;
   const platform = link?.ok ? link.platform : "other";
-  const category = useMemo(() => {
+  const category = useMemo(() => findCategory(catalog, categoryKey), [catalog, categoryKey]);
+  const fields = useMemo(() => {
     try {
-      return categoryKey ? getCategory(categoryKey) : null;
+      return category ? resolveFields(category.definition, catalog.measurements) : [];
     } catch {
-      return null;
+      return [];
     }
-  }, [categoryKey]);
+  }, [category, catalog.measurements]);
+  const digitalCategories = catalog.categories.filter((c) => c.fulfilment === "digital");
 
   const options = useMemo(() => {
     if (!category) return [];
@@ -162,10 +178,12 @@ export function OrderForm(props: OrderFormProps) {
   function choosePath(p: PathType) {
     setValue("pathType", p, { shouldValidate: false });
     if (p === "digital") {
-      setValue("category", "digital");
-      setValue("details", prefillFromSaved("digital", savedMeasurements));
+      // One digital category is chosen for you; with several, pick on the Details step.
+      const only = digitalCategories.length === 1 ? digitalCategories[0].key : "";
+      setValue("category", only);
+      setValue("details", prefillFor(catalog, only, savedMeasurements));
       setValue("shippingMode", "none");
-    } else if (categoryKey === "digital") {
+    } else if (findCategory(catalog, categoryKey)?.fulfilment === "digital") {
       setValue("category", "");
       setValue("details", {});
       setValue("shippingMode", undefined as unknown as ShippingMode);
@@ -175,7 +193,7 @@ export function OrderForm(props: OrderFormProps) {
 
   function chooseCategory(key: string) {
     setValue("category", key, { shouldValidate: true });
-    setValue("details", prefillFromSaved(key, savedMeasurements));
+    setValue("details", prefillFor(catalog, key, savedMeasurements));
     if (shippingMode && !options.some((o) => o.mode === shippingMode)) {
       setValue("shippingMode", undefined as unknown as ShippingMode);
     }
@@ -183,7 +201,7 @@ export function OrderForm(props: OrderFormProps) {
 
   async function goNext() {
     const values = form.getValues();
-    const r = validateOrderInput(values);
+    const r = validateOrderInput(values, catalog);
     const stepFields = r.ok ? [] : Object.keys(r.fieldErrors).filter((k) => stepOf(k, effectivePath) === step);
     if (stepFields.length > 0) {
       await trigger(stepFields as Parameters<typeof trigger>[0], { shouldFocus: true });
@@ -422,7 +440,7 @@ export function OrderForm(props: OrderFormProps) {
       {step === 2 ? (
         <section className="space-y-6">
           <h2 className="display text-3xl">Details</h2>
-          {!isDigital ? (
+          {!isDigital || digitalCategories.length > 1 ? (
             <Field label="Category" id="category" error={err("category")}>
               <select
                 id="category"
@@ -434,11 +452,11 @@ export function OrderForm(props: OrderFormProps) {
                 <option value="" disabled>
                   Choose a category…
                 </option>
-                {currentCategories()
-                  .filter((c) => c.key !== "digital")
+                {catalog.categories
+                  .filter((c) => (c.fulfilment === "digital") === isDigital)
                   .map((c) => (
                     <option key={c.key} value={c.key}>
-                      {c.label}
+                      {c.name}
                     </option>
                   ))}
               </select>
@@ -447,20 +465,33 @@ export function OrderForm(props: OrderFormProps) {
 
           {category ? (
             <>
-              {category.measurement ? (
+              {category.restrictedNote ? (
+                <p className="rounded-lg border border-warning/30 bg-warning/10 p-3 text-sm text-warning">{category.restrictedNote}</p>
+              ) : null}
+              {hasMeasurements(category.definition) ? (
                 <p className="text-sm text-muted-foreground">
                   We use these to check the seller&apos;s size chart for you.
-                  {Object.keys(prefillFromSaved(category.key, savedMeasurements)).length > 0
+                  {Object.keys(prefillMeasurements(category.definition, savedMeasurements)).length > 0
                     ? " Prefilled from your saved measurements."
                     : null}
                 </p>
               ) : null}
-              <CategoryFields fields={category.fields} register={reg} errors={errors} />
+              <CategoryFields
+                fields={fields}
+                register={reg}
+                errors={errors}
+                values={(details ?? {}) as Record<string, unknown>}
+                helpImageUrls={props.helpImageUrls}
+              />
               <Field
-                label={category.variantRequired?.label ?? "Option — colour, size, version (optional)"}
+                label={
+                  category.definition.option
+                    ? `${category.definition.option.label}${category.definition.option.required ? "" : " — optional"}`
+                    : "Option — colour, size, version (optional)"
+                }
                 id="variantText"
                 error={err("variantText")}
-                hint={category.variantRequired?.help}
+                hint={category.definition.option?.helpText}
               >
                 <Input
                   id="variantText"
@@ -469,13 +500,13 @@ export function OrderForm(props: OrderFormProps) {
                   {...register("variantText")}
                 />
               </Field>
-              {category.savesToProfile ? (
+              {hasMeasurements(category.definition) ? (
                 <label className="flex items-center gap-3 text-sm">
                   <Checkbox
                     defaultChecked
                     onCheckedChange={(v) => setValue("saveMeasurements", v === true)}
                   />
-                  Save these to my account for next time
+                  Save these to my profile?
                 </label>
               ) : null}
             </>

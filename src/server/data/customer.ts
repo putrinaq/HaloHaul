@@ -2,30 +2,35 @@ import "server-only";
 import { eq } from "drizzle-orm";
 import { customerProfiles } from "../../db/schema";
 import type { Db } from "../../db/types";
-import { sanitizeSavedMeasurements, type SavedMeasurements } from "../../domain/categories";
+import { sanitizeSavedMeasurements, type SavedMeasurements } from "../../domain/categorySchema";
+import { getCatalog } from "./categories";
 
-// Personal data (phone, measurements, prescriptions). Always keyed by the
-// session user's id — never by an id taken from the request.
+// Personal data (phone, measurements). Always keyed by the session user's id —
+// never by an id taken from the request.
 
 export interface Profile {
   displayName: string;
   phone: string | null;
   campus: string | null;
+  /** `{ [measurementKey]: value }`, only known and in-range values. */
   savedMeasurements: SavedMeasurements;
 }
 
 export async function getProfile(db: Db, userId: string): Promise<Profile | null> {
-  const [row] = await db
-    .select({
-      displayName: customerProfiles.displayName,
-      phone: customerProfiles.phone,
-      campus: customerProfiles.campus,
-      savedMeasurements: customerProfiles.savedMeasurements,
-    })
-    .from(customerProfiles)
-    .where(eq(customerProfiles.userId, userId));
+  const [[row], catalog] = await Promise.all([
+    db
+      .select({
+        displayName: customerProfiles.displayName,
+        phone: customerProfiles.phone,
+        campus: customerProfiles.campus,
+        savedMeasurements: customerProfiles.savedMeasurements,
+      })
+      .from(customerProfiles)
+      .where(eq(customerProfiles.userId, userId)),
+    getCatalog(db),
+  ]);
   if (!row) return null;
-  return { ...row, savedMeasurements: sanitizeSavedMeasurements(row.savedMeasurements) };
+  return { ...row, savedMeasurements: sanitizeSavedMeasurements(row.savedMeasurements, catalog.measurements) };
 }
 
 export async function upsertProfile(

@@ -1,5 +1,5 @@
 import type { ShippingChoiceSnapshot } from "./analytics";
-import type { CategoryDefinition } from "./categories";
+import type { CategoryInfo } from "./catalog";
 import type { BatchShippingMode, PathType, Platform, ShippingMode } from "./enums";
 import { isBatchShippingMode } from "./enums";
 import { SHIPPING_MODE_LABELS } from "./labels";
@@ -27,20 +27,27 @@ export interface ShippingOption {
   note: string | null;
 }
 
+type ShippingCategory = Pick<CategoryInfo, "fulfilment" | "allowedShippingModes" | "defaultParcel">;
+
+/**
+ * Modes offered for this order: the category's allowed modes, with PDD
+ * direct-ship only for PDD links. Digital categories never ship.
+ */
 export function availableShippingModes(
   platform: Platform,
   pathType: PathType,
-  category: CategoryDefinition,
+  category: Pick<CategoryInfo, "fulfilment" | "allowedShippingModes">,
 ): ShippingMode[] {
-  if (pathType === "digital" || !category.shippable) return ["none"];
-  const batch: ShippingMode[] = ["air", "air_sensitive", "sea"];
-  return platform === "pdd" ? ["pdd_direct", ...batch] : batch;
+  if (pathType === "digital" || category.fulfilment === "digital") return ["none"];
+  const allowed = new Set(category.allowedShippingModes);
+  const batch = (["air", "air_sensitive", "sea"] as const).filter((m) => allowed.has(m));
+  return platform === "pdd" && allowed.has("pdd_direct") ? ["pdd_direct", ...batch] : batch;
 }
 
 export interface ShippingOptionsInput {
   platform: Platform;
   pathType: PathType;
-  category: CategoryDefinition;
+  category: ShippingCategory;
   quantity: number;
   settings: Settings;
   fxRate: FxRateMicro;

@@ -1,9 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { getCategory } from "./categories";
+import { seedCatalog } from "../db/seed/catalog";
+import { findCategory } from "./catalog";
 import { parseFxRate } from "./money";
 import { DEFAULT_SETTINGS } from "./settings";
 import { availableShippingModes, buildShippingSnapshot, shippingOptions } from "./shippingOptions";
 
+const catalog = seedCatalog();
+const getCategory = (key: string) => findCategory(catalog, key)!;
 const now = new Date("2026-10-14T00:00:00Z");
 const base = {
   platform: "taobao" as const,

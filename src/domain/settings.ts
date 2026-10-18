@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { BATCH_SHIPPING_MODES } from "./enums";
+import { DEFAULT_TEMPLATES, TEMPLATE_KEYS, type TemplateKey } from "./messages";
 
 // The `settings` table holds a single row whose `data` column is validated by
 // this schema. Every key has a default, so adding a setting never needs a
@@ -114,6 +115,25 @@ export const settingsSchema = z.object({
       windowText: z.string().default("Weekday evenings — the exact window is sent when your batch arrives."),
     })
     .prefault({}),
+  quote: z
+    .object({
+      /** How long a sent quote stays open before it expires. */
+      validDays: z.number().int().min(1).max(30).default(3),
+    })
+    .prefault({}),
+  store: z
+    .object({
+      businessName: z.string().max(120).default("HaloHaul"),
+      /** Shown on receipts: registration, address, contact. */
+      businessDetails: z.string().max(1000).default(""),
+      /** R2 key of the DuitNow QR image students scan to pay. */
+      duitnowQrKey: z.string().max(300).nullable().default(null),
+      /** Shown under the QR, e.g. the account name to expect. */
+      paymentNote: z.string().max(500).default("Pay the exact amount, then upload a screenshot of the receipt."),
+    })
+    .prefault({}),
+  /** WhatsApp templates; see domain/messages for the variables. */
+  messages: z.partialRecord(z.enum(TEMPLATE_KEYS), z.string().max(1000)).default({}),
 });
 
 export type Settings = z.infer<typeof settingsSchema>;
@@ -124,6 +144,11 @@ export function parseSettings(data: unknown): Settings {
 }
 
 export const DEFAULT_SETTINGS: Settings = parseSettings({});
+
+/** A template as edited in Settings, or the built-in default. */
+export function templateText(settings: Settings, key: TemplateKey): string {
+  return settings.messages[key] || DEFAULT_TEMPLATES[key];
+}
 
 export function findForwarder(settings: Settings, name?: string): Forwarder {
   const wanted = name ?? settings.shipping.defaultForwarder;

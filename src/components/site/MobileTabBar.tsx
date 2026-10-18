@@ -14,8 +14,8 @@ const TABS = [
   { href: "/account", label: "Account", icon: CircleUserRound, match: (p: string) => p.startsWith("/account") },
 ] as const;
 
-/** Focused flows get the whole screen (the order form has its own sticky actions). */
-const HIDDEN_ON = ["/order/new", "/sign-in"];
+/** Focused flows get the whole screen (the order form has its own sticky actions); the admin has its own bar. */
+const HIDDEN_ON = ["/order/new", "/sign-in", "/admin"];
 
 /**
  * App-style bottom navigation for phones (hidden from md up, where the header

@@ -3,8 +3,9 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { getDb } from "@/db/client";
-import { getCategory, mergeSavedMeasurements, sanitizeSavedMeasurements } from "@/domain/categories";
+import { libraryFields, sanitizeSavedMeasurements, validateDetails } from "@/domain/categorySchema";
 import { normalizeMyMobile } from "@/domain/phone";
+import { getCatalog } from "@/server/data/categories";
 import { getProfile, setSavedMeasurements, upsertProfile } from "@/server/data/customer";
 import { LIMITS, rateLimit } from "@/server/rateLimit";
 import { getSessionUser } from "@/server/session";
@@ -43,42 +44,30 @@ export async function updateProfileAction(raw: unknown): Promise<ActionResult> {
   return { ok: true };
 }
 
-export async function saveMeasurementsAction(category: string, details: unknown): Promise<ActionResult> {
+/**
+ * Replaces the saved measurements with the submitted form: every active
+ * measurement is optional and checked against the library; an empty box
+ * removes that value. Values for switched-off measurements are kept.
+ */
+export async function saveMeasurementsAction(details: unknown): Promise<ActionResult> {
   const userId = await currentUserId();
   if (!userId) return { ok: false, error: "Sign in again, or wait a moment and retry." };
-  let def;
-  try {
-    def = getCategory(category);
-  } catch {
-    return { ok: false, error: "Unknown category." };
-  }
-  if (!def.savesToProfile) return { ok: false, error: "That category doesn't save measurements." };
-  const parsed = def.schema.safeParse(details);
-  if (!parsed.success) {
+  const db = getDb();
+  const [profile, catalog] = await Promise.all([getProfile(db, userId), getCatalog(db)]);
+  if (!profile) return { ok: false, error: "Add your name first, then save measurements." };
+
+  const r = validateDetails(libraryFields(catalog.measurements), details);
+  if (!r.ok) {
     return {
       ok: false,
       error: "Check the highlighted fields.",
-      fieldErrors: Object.fromEntries(parsed.error.issues.map((i) => [`details.${String(i.path[0])}`, i.message])),
+      fieldErrors: Object.fromEntries(Object.entries(r.fieldErrors).map(([k, m]) => [`details.${k}`, m])),
     };
   }
-
-  const db = getDb();
-  const profile = await getProfile(db, userId);
-  if (!profile) return { ok: false, error: "Add your name first, then save measurements." };
-  await setSavedMeasurements(db, userId, mergeSavedMeasurements(profile.savedMeasurements, category, parsed.data));
-  revalidatePath("/account");
-  return { ok: true };
-}
-
-export async function removeMeasurementsAction(category: string): Promise<ActionResult> {
-  const userId = await currentUserId();
-  if (!userId) return { ok: false, error: "Sign in again, or wait a moment and retry." };
-  const db = getDb();
-  const profile = await getProfile(db, userId);
-  if (!profile) return { ok: true };
-  const rest = sanitizeSavedMeasurements(profile.savedMeasurements);
-  delete rest[category];
-  await setSavedMeasurements(db, userId, rest);
+  const active = new Set(catalog.measurements.filter((m) => m.isActive).map((m) => m.key));
+  const kept = Object.fromEntries(Object.entries(profile.savedMeasurements).filter(([k]) => !active.has(k)));
+  const next = sanitizeSavedMeasurements({ ...kept, ...r.value }, catalog.measurements);
+  await setSavedMeasurements(db, userId, next);
   revalidatePath("/account");
   return { ok: true };
 }

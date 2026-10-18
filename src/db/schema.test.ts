@@ -2,16 +2,18 @@ import { eq, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { parseSettings } from "../domain/settings";
 import { batches, ledgerEntries, orders, orderStatusHistory, payments, quotes, settings, users } from "./schema";
-import { createTestDb, type TestDb } from "./testing";
+import { createTestDb, publishedVersionId, type TestDb } from "./testing";
 
 let db: TestDb;
 let close: () => Promise<void>;
+const versions: Record<string, string> = {};
 
 beforeAll(async () => {
   const t = await createTestDb();
   db = t.db;
   close = () => t.client.close();
   await db.insert(users).values({ id: "u1", name: "Aina", email: "aina@example.com" });
+  for (const key of ["clothing_top", "other"]) versions[key] = await publishedVersionId(db, key);
 });
 
 afterAll(async () => close());
@@ -36,8 +38,7 @@ async function newOrder() {
       pathType: "url",
       platform: "taobao",
       productUrl: "https://item.taobao.com/item.htm?id=1",
-      category: "clothing_top",
-      categorySchemaVersion: 1,
+      categoryVersionId: versions.clothing_top,
       shippingMode: "air",
     })
     .returning();
@@ -68,8 +69,7 @@ describe("orders", () => {
         itemName: "Test item",
         pathType: "reverse_search",
         platform: "other",
-        category: "other",
-        categorySchemaVersion: 1,
+        categoryVersionId: versions.other,
         shippingMode: "air",
       }),
     );
@@ -88,8 +88,7 @@ describe("orders", () => {
         pathType: "url",
         platform: "pdd",
         productUrl: "https://mobile.yangkeduo.com/goods.html?goods_id=1",
-        category: "other",
-        categorySchemaVersion: 1,
+        categoryVersionId: versions.other,
         shippingMode: "pdd_direct",
         batchId: batch.id,
       }),

@@ -18,7 +18,15 @@ async function uploadOne(file: File): Promise<Photo> {
   const p = await presign.json();
   if (!presign.ok) throw new Error(p.error ?? "Upload failed");
 
-  const put = await fetch(p.url, { method: "PUT", headers: p.headers, body: file });
+  // The browser uploads straight to R2. If R2 can't be reached at all (offline,
+  // bad storage config, missing bucket CORS) fetch throws a raw browser message
+  // like "NetworkError when attempting to fetch resource"; show a plain one.
+  let put: Response;
+  try {
+    put = await fetch(p.url, { method: "PUT", headers: p.headers, body: file });
+  } catch {
+    throw new Error("We couldn't reach our photo storage. Check your connection and try again.");
+  }
   if (!put.ok) throw new Error("Upload failed. Check your connection and try again.");
 
   const fin = await fetch("/api/uploads/finalize", {

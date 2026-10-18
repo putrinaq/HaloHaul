@@ -57,3 +57,11 @@ backup.env
 
 # local PGlite database (npm run db:local)
 /.pglite/
+
+# local dev uploads (DevDiskStore, used when R2 is not configured)
+/.uploads/
+
+# Playwright
+/e2e/.auth/
+/test-results/
+/playwright-report/

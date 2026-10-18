@@ -4,12 +4,12 @@
 import { TZDate } from "@date-fns/tz";
 import { addDays, set } from "date-fns";
 import { count, eq } from "drizzle-orm";
-import { getCategory } from "../domain/categories";
 import { createAuth } from "../server/auth";
 import { env } from "../server/env";
 import { createDb, getPool } from "./client";
 import {
   batches,
+  categories,
   customerProfiles,
   orders,
   orderStatusHistory,
@@ -109,9 +109,7 @@ async function seedDemo(db: ReturnType<typeof createDb>, e: ReturnType<typeof en
       displayName: "Ahmad Nazri",
       phone: "+60123456789",
       campus: "Main campus",
-      savedMeasurements: {
-        clothing_top: { chest_cm: 96, shoulder_cm: 44, arm_length_cm: 62, body_length_cm: 70 },
-      },
+      savedMeasurements: { chest_cm: 96, shoulder_cm: 44, arm_length_cm: 62, body_length_cm: 70 },
     });
     console.log(`[seed] demo student ${email} / demo-password-123`);
   }
@@ -135,8 +133,15 @@ async function seedDemo(db: ReturnType<typeof createDb>, e: ReturnType<typeof en
 
   const [{ n: orderCount }] = await db.select({ n: count() }).from(orders).where(eq(orders.customerId, student.id));
   if (orderCount === 0) {
-    const top = getCategory("clothing_top");
-    const dress = getCategory("dress");
+    // Categories come from migration 0004; demo orders use their published versions.
+    const published = await db
+      .select({ key: categories.key, versionId: categories.currentPublishedVersionId })
+      .from(categories);
+    const versionOf = (key: string) => {
+      const id = published.find((c) => c.key === key)?.versionId;
+      if (!id) throw new Error(`Category ${key} has no published version — run the migrations first`);
+      return id;
+    };
     const created = await db
       .insert(orders)
       .values([
@@ -146,8 +151,7 @@ async function seedDemo(db: ReturnType<typeof createDb>, e: ReturnType<typeof en
           pathType: "url",
           platform: "taobao",
           productUrl: "https://item.taobao.com/item.htm?id=000000000001",
-          category: top.key,
-          categorySchemaVersion: top.version,
+          categoryVersionId: versionOf("clothing_top"),
           details: { chest_cm: 96, shoulder_cm: 44, arm_length_cm: 62, body_length_cm: 70 },
           variantText: "White / L",
           shippingMode: "air",
@@ -158,8 +162,7 @@ async function seedDemo(db: ReturnType<typeof createDb>, e: ReturnType<typeof en
           itemName: "Polka dot dress",
           pathType: "reverse_search",
           platform: "rednote",
-          category: dress.key,
-          categorySchemaVersion: dress.version,
+          categoryVersionId: versionOf("dress"),
           details: { chest_cm: 86, waist_cm: 70, hip_cm: 94, length_cm: 110 },
           variantText: "Polka dot, navy",
           conditionPreference: "either",

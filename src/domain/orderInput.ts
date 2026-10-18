@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { getCategory, validateCategoryDetails, type CategoryDefinition } from "./categories";
+import { findCategory, validateCategoryInput, type Catalog, type PublishedCategory } from "./catalog";
 import {
   CONDITION_PREFERENCES,
   FULFILMENT_METHODS,
@@ -67,8 +67,9 @@ export interface NormalizedOrder {
   productUrl: string | null;
   itemName: string;
   quantity: number;
+  /** Category key, and the published version the details were validated against. */
   category: string;
-  categorySchemaVersion: number;
+  categoryVersionId: string;
   details: Record<string, unknown>;
   variantText: string | null;
   conditionPreference: ConditionPreference | null;
@@ -91,7 +92,11 @@ export type OrderValidationResult =
   | { ok: true; value: NormalizedOrder }
   | { ok: false; fieldErrors: Record<string, string> };
 
-export function validateOrderInput(raw: unknown): OrderValidationResult {
+/**
+ * `catalog` is the published category catalogue (loaded on the server, passed to
+ * the form as props), so both sides validate against the same definitions.
+ */
+export function validateOrderInput(raw: unknown, catalog: Catalog): OrderValidationResult {
   const fieldErrors: Record<string, string> = {};
   const add = (key: string, message: string) => {
     fieldErrors[key] ??= message;
@@ -128,23 +133,20 @@ export function validateOrderInput(raw: unknown): OrderValidationResult {
   }
 
   // ---- category ------------------------------------------------------------
-  let category: CategoryDefinition | null = null;
+  let category: PublishedCategory | null = null;
   if (v.category !== undefined) {
-    try {
-      category = getCategory(v.category);
-    } catch {
-      add("category", "Choose a category");
-    }
+    category = findCategory(catalog, v.category);
+    if (!category) add("category", "Choose a category");
   }
-  if (category && pathType === "digital" && category.key !== "digital") {
-    add("category", "Digital orders use the Digital product category");
+  if (category && pathType === "digital" && category.fulfilment !== "digital") {
+    add("category", "Digital orders use a digital product category");
   }
-  if (category && pathType && pathType !== "digital" && category.key === "digital") {
+  if (category && pathType && pathType !== "digital" && category.fulfilment === "digital") {
     add("category", "For digital items, choose “You want a digital product” at the start");
   }
 
   const cat = category
-    ? validateCategoryDetails({ category: category.key, details: v.details ?? {}, variantText: v.variantText })
+    ? validateCategoryInput(category.definition, catalog.measurements, v.details ?? {}, v.variantText)
     : null;
   if (cat && !cat.ok) {
     for (const [key, message] of Object.entries(cat.fieldErrors)) {
@@ -170,7 +172,11 @@ export function validateOrderInput(raw: unknown): OrderValidationResult {
     if (!modes.includes(v.shippingMode)) {
       add(
         "shippingMode",
-        modes.length === 1 && modes[0] === "none" ? "Digital items don't ship" : "Choose one of the shipping options shown",
+        modes.length === 1 && modes[0] === "none"
+          ? "Digital items don't ship"
+          : modes.length === 0
+            ? "This category can't be shipped from this platform"
+            : "Choose one of the shipping options shown",
       );
     }
   }
@@ -181,7 +187,7 @@ export function validateOrderInput(raw: unknown): OrderValidationResult {
 
   if (Object.keys(fieldErrors).length > 0) return { ok: false, fieldErrors };
   // Every field parsed and every cross-field rule passed past this point.
-  if (!pathType || !cat?.ok || !phone || !isComplete(v)) return { ok: false, fieldErrors: { _form: "Incomplete order" } };
+  if (!pathType || !category || !cat?.ok || !phone || !isComplete(v)) return { ok: false, fieldErrors: { _form: "Incomplete order" } };
   const shippable = v.shippingMode !== "none";
 
   return {
@@ -193,8 +199,8 @@ export function validateOrderInput(raw: unknown): OrderValidationResult {
       productUrl,
       itemName: v.itemName,
       quantity: v.quantity,
-      category: cat.category,
-      categorySchemaVersion: cat.version,
+      category: category.key,
+      categoryVersionId: category.versionId,
       details: cat.details,
       variantText: v.variantText || null,
       conditionPreference: pathType === "digital" ? null : (v.conditionPreference ?? null),

@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
+import { seedCatalog } from "../db/seed/catalog";
 import { validateOrderInput, type OrderFormInput } from "./orderInput";
+
+const catalog = seedCatalog();
 
 const top = { chest_cm: 96, shoulder_cm: 44, arm_length_cm: 62, body_length_cm: 70 };
 
@@ -23,14 +26,14 @@ const valid: OrderFormInput = {
 };
 
 function errors(input: Partial<OrderFormInput>) {
-  const r = validateOrderInput({ ...valid, ...input });
+  const r = validateOrderInput({ ...valid, ...input }, catalog);
   if (r.ok) throw new Error("expected validation to fail");
   return r.fieldErrors;
 }
 
 describe("validateOrderInput", () => {
   it("normalises a valid link order", () => {
-    const r = validateOrderInput(valid);
+    const r = validateOrderInput(valid, catalog);
     expect(r.ok).toBe(true);
     if (!r.ok) return;
     expect(r.value).toMatchObject({
@@ -39,7 +42,7 @@ describe("validateOrderInput", () => {
       platform: "taobao",
       productUrl: "https://item.taobao.com/item.htm?id=123",
       category: "clothing_top",
-      categorySchemaVersion: 1,
+      categoryVersionId: "ver-clothing_top-1",
       details: top,
       variantText: "White / L",
       shippingMode: "air",
@@ -65,7 +68,7 @@ describe("validateOrderInput", () => {
       ...valid,
       productUrl: "https://www.xiaohongshu.com/explore/abc",
       conditionPreference: "either",
-    });
+    }, catalog);
     expect(r).toMatchObject({ ok: true, value: { pathType: "reverse_search", rerouted: true, platform: "rednote" } });
   });
 
@@ -78,7 +81,7 @@ describe("validateOrderInput", () => {
       productUrl: "",
       conditionPreference: "new_only",
       referencePhotoKeys: ["photos/u1/a.webp"],
-    });
+    }, catalog);
     expect(ok).toMatchObject({ ok: true, value: { platform: "other", productUrl: null } });
   });
 
@@ -96,12 +99,12 @@ describe("validateOrderInput", () => {
       variantText: "",
       shippingMode: "none" as const,
     };
-    expect(validateOrderInput({ ...valid, ...digital })).toMatchObject({
+    expect(validateOrderInput({ ...valid, ...digital }, catalog)).toMatchObject({
       ok: true,
       value: { pathType: "digital", shippingMode: "none", conditionPreference: null, fulfilment: "campus_pickup" },
     });
     expect(errors({ ...digital, shippingMode: "air" }).shippingMode).toBe("Digital items don't ship");
-    expect(errors({ ...digital, category: "clothing_top", details: top }).category).toMatch(/Digital product category/);
+    expect(errors({ ...digital, category: "clothing_top", details: top }).category).toMatch(/digital product category/i);
     expect(errors({ category: "digital", details: digital.details }).category).toMatch(/digital product/);
   });
 
@@ -111,7 +114,7 @@ describe("validateOrderInput", () => {
       ...valid,
       productUrl: "https://mobile.yangkeduo.com/goods.html?goods_id=1",
       shippingMode: "pdd_direct",
-    });
+    }, catalog);
     expect(pdd).toMatchObject({ ok: true, value: { platform: "pdd", shippingMode: "pdd_direct" } });
   });
 
@@ -127,7 +130,7 @@ describe("validateOrderInput", () => {
   });
 
   it("reports errors in early fields even while later steps are still empty", () => {
-    const r = validateOrderInput({ pathType: "url", productUrl: "https://www.amazon.com/dp/1", itemName: "", quantity: 1 });
+    const r = validateOrderInput({ pathType: "url", productUrl: "https://www.amazon.com/dp/1", itemName: "", quantity: 1 }, catalog);
     expect(r.ok).toBe(false);
     if (r.ok) return;
     expect(r.fieldErrors.productUrl).toMatch(/supported platforms/);

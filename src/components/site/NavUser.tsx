@@ -21,6 +21,11 @@ export async function NavUser() {
   }
   return (
     <div className="hidden items-center gap-4 text-white md:flex md:text-base">
+      {user.role === "admin" ? (
+        <Link href="/admin" className="link-underline whitespace-nowrap text-sky-300">
+          Admin
+        </Link>
+      ) : null}
       <Link href="/orders" className="link-underline whitespace-nowrap">
         My orders
       </Link>

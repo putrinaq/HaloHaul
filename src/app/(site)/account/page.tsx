@@ -5,7 +5,10 @@ import { Suspense } from "react";
 import { StatusBadge } from "@/components/order/StatusBadge";
 import { getDb } from "@/db/client";
 import { fmtDateShort, orderNo } from "@/lib/format";
+import { getCatalog } from "@/server/data/categories";
 import { getProfile } from "@/server/data/customer";
+import { helpImageUrls } from "@/server/photos";
+import { getPhotoStore } from "@/server/storage";
 import { listOrdersForCustomer } from "@/server/data/orders";
 import { getSessionUser } from "@/server/session";
 import { MeasurementsEditor } from "./MeasurementsEditor";
@@ -29,7 +32,7 @@ async function Account() {
   const user = await getSessionUser();
   if (!user) redirect("/sign-in?next=/account");
   const db = getDb();
-  const [profile, orders] = await Promise.all([getProfile(db, user.id), listOrdersForCustomer(db, user.id)]);
+  const [profile, orders, catalog] = await Promise.all([getProfile(db, user.id), listOrdersForCustomer(db, user.id), getCatalog(db)]);
 
   return (
     <div className="mt-8 space-y-10">
@@ -53,7 +56,12 @@ async function Account() {
       <section className="space-y-4">
         <h2 className="text-xl font-medium">Saved measurements</h2>
         <p className="text-sm text-muted-foreground">Used to prefill your orders. Personal data — see our privacy notice.</p>
-        <MeasurementsEditor saved={profile?.savedMeasurements ?? {}} hasProfile={profile !== null} />
+        <MeasurementsEditor
+          saved={profile?.savedMeasurements ?? {}}
+          library={catalog.measurements}
+          helpImageUrls={await helpImageUrls(getPhotoStore(), catalog)}
+          hasProfile={profile !== null}
+        />
       </section>
 
       <section className="space-y-4">

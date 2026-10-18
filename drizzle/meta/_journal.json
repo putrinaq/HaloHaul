@@ -22,6 +22,27 @@
       "when": 1791909125554,
       "tag": "0002_order_item_name",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1792293464181,
+      "tag": "0003_admin_and_categories",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1792293500647,
+      "tag": "0004_seed_categories",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1792293528580,
+      "tag": "0005_orders_category_version",
+      "breakpoints": true
     }
   ]
 }

@@ -3,9 +3,9 @@ import { jsonError, sessionUserId } from "@/server/apiAuth";
 import { LIMITS, rateLimit } from "@/server/rateLimit";
 import { getPhotoStore } from "@/server/storage";
 import { GET_EXPIRES_S } from "@/server/photos";
-import { finalizeUpload, UploadError } from "@/server/uploads";
+import { finalizeUpload, STUDENT_UPLOAD_PURPOSES, UploadError } from "@/server/uploads";
 
-const body = z.object({ key: z.string().max(300) });
+const body = z.object({ key: z.string().max(300), purpose: z.enum(STUDENT_UPLOAD_PURPOSES).default("reference") });
 
 export async function POST(req: Request) {
   const userId = await sessionUserId(req);
@@ -21,7 +21,7 @@ export async function POST(req: Request) {
   if (!parsed.success) return jsonError("Invalid request.", 400);
 
   try {
-    const { key } = await finalizeUpload(store, userId, parsed.data.key);
+    const { key } = await finalizeUpload(store, userId, parsed.data.key, parsed.data.purpose);
     return Response.json({ key, previewUrl: await store.presignGet(key, GET_EXPIRES_S) });
   } catch (err) {
     if (err instanceof UploadError) return jsonError(err.message, err.status);

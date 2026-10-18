@@ -9,6 +9,9 @@ import {
   S3ServiceException,
 } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
+import { createHmac, timingSafeEqual } from "node:crypto";
+import { mkdir, readFile, rm, stat, writeFile } from "node:fs/promises";
+import path from "node:path";
 import { env } from "./env";
 
 // Private object storage. Photos never touch local disk: browsers upload
@@ -122,15 +125,88 @@ export class MemoryStore implements ObjectStore {
   }
 }
 
+/**
+ * Local development only (no R2 configured): objects live under `.uploads/`
+ * and the "presigned" URLs point at /api/dev-store with an HMAC signature, so
+ * the upload flow works end to end on a laptop. Never used in production.
+ */
+export class DevDiskStore implements ObjectStore {
+  constructor(
+    private readonly root: string,
+    private readonly secret: string,
+  ) {}
+
+  private file(key: string) {
+    if (!/^[A-Za-z0-9/_.-]{1,300}$/.test(key) || key.includes("..")) throw new Error("Invalid key");
+    return path.join(this.root, key);
+  }
+
+  sign(parts: string[]): string {
+    return createHmac("sha256", this.secret).update(parts.join("\n")).digest("base64url");
+  }
+
+  /** Checks a dev-store URL signature (timing-safe) and expiry. */
+  verify(parts: string[], exp: number, sig: string): boolean {
+    if (!Number.isFinite(exp) || exp < Date.now() / 1000) return false;
+    const want = Buffer.from(this.sign(parts));
+    const got = Buffer.from(sig);
+    return want.length === got.length && timingSafeEqual(want, got);
+  }
+
+  async presignPut(key: string, opts: { contentType: string; contentLength: number; expiresIn: number }) {
+    const exp = Math.floor(Date.now() / 1000) + opts.expiresIn;
+    const sig = this.sign(["put", key, opts.contentType, String(opts.contentLength), String(exp)]);
+    const q = new URLSearchParams({ key, ct: opts.contentType, len: String(opts.contentLength), exp: String(exp), sig });
+    return `/api/dev-store?${q}`;
+  }
+
+  async presignGet(key: string, expiresIn: number) {
+    const exp = Math.floor(Date.now() / 1000) + expiresIn;
+    const sig = this.sign(["get", key, String(exp)]);
+    return `/api/dev-store?${new URLSearchParams({ key, exp: String(exp), sig })}`;
+  }
+
+  async head(key: string) {
+    try {
+      return { size: (await stat(this.file(key))).size };
+    } catch {
+      return null;
+    }
+  }
+
+  async get(key: string) {
+    try {
+      return new Uint8Array(await readFile(this.file(key)));
+    } catch {
+      return null;
+    }
+  }
+
+  async put(key: string, body: Uint8Array) {
+    const f = this.file(key);
+    await mkdir(path.dirname(f), { recursive: true });
+    await writeFile(f, body);
+  }
+
+  async delete(key: string) {
+    await rm(this.file(key), { force: true });
+  }
+}
+
 let store: ObjectStore | null | undefined;
 
-/** The configured photo store, or null when R2 isn't configured (local dev). */
+/**
+ * The configured photo store: R2 when configured; in development without R2,
+ * the local disk store; otherwise null (uploads switched off).
+ */
 export function getPhotoStore(): ObjectStore | null {
   if (store !== undefined) return store;
   const e = env();
   store =
     e.R2_ACCOUNT_ID && e.R2_ACCESS_KEY_ID && e.R2_SECRET_ACCESS_KEY && e.R2_BUCKET
       ? new R2Store(e.R2_ACCOUNT_ID, e.R2_ACCESS_KEY_ID, e.R2_SECRET_ACCESS_KEY, e.R2_BUCKET)
-      : null;
+      : e.NODE_ENV !== "production"
+        ? new DevDiskStore(path.resolve(process.cwd(), ".uploads"), e.BETTER_AUTH_SECRET)
+        : null;
   return store;
 }

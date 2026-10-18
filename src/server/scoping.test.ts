@@ -57,7 +57,6 @@ describe("submitOrder", () => {
       itemName: "Canvas sneakers",
       platform: "taobao",
       status: "submitted",
-      categorySchemaVersion: 1,
       estWeightG: 700, // 350 g default × 2
       restrictedFlag: false,
     });
@@ -70,7 +69,8 @@ describe("submitOrder", () => {
 
     const profile = await getProfile(db, ALICE);
     expect(profile).toMatchObject({ displayName: "Alice Tan", phone: "+60123456789", campus: "Main" });
-    expect(profile!.savedMeasurements.clothing_top).toEqual(top);
+    // Saved per measurement now, so any category asking for chest etc. is prefilled.
+    expect(profile!.savedMeasurements).toEqual(top);
   });
 
   it("holds restricted items for review without rejecting them", async () => {
@@ -151,8 +151,8 @@ describe("scoping", () => {
     const bob = await getProfile(db, BOB);
     expect(alice!.phone).toBe("+60123456789");
     expect(bob!.phone).toBe("+60198765432");
-    expect(alice!.savedMeasurements.clothing_top).toMatchObject({ chest_cm: 96 });
-    expect(bob!.savedMeasurements.clothing_top).toMatchObject({ chest_cm: 104 });
+    expect(alice!.savedMeasurements).toMatchObject({ chest_cm: 96 });
+    expect(bob!.savedMeasurements).toMatchObject({ chest_cm: 104 });
     expect(await getProfile(db, "nobodyUserId0000")).toBeNull();
   });
 });

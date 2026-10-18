@@ -1,109 +1,104 @@
 "use client";
 
-import { zodResolver } from "@hookform/resolvers/zod";
-import { useState, useTransition } from "react";
-import { useForm, type FieldValues, type Resolver, type UseFormRegister } from "react-hook-form";
-import { z } from "zod";
+import { useMemo, useState, useTransition } from "react";
+import { useForm, useWatch, type FieldErrors, type FieldValues, type Resolver, type UseFormRegister } from "react-hook-form";
 import { CategoryFields } from "@/components/category/CategoryFields";
 import { Button } from "@/components/ui/button";
-import { currentCategories, getCategory, type SavedMeasurements } from "@/domain/categories";
-import { removeMeasurementsAction, saveMeasurementsAction } from "./actions";
+import {
+  libraryFields,
+  MEASUREMENT_GROUP_LABELS,
+  validateDetails,
+  type MeasurementDef,
+  type SavedMeasurements,
+} from "@/domain/categorySchema";
+import type { MeasurementGroup } from "@/domain/enums";
+import { saveMeasurementsAction } from "./actions";
 
-const PROFILE_CATEGORIES = currentCategories().filter((c) => c.savesToProfile);
+type Values = { details: Record<string, unknown> };
 
-/** Saved measurements prefill the order form. Same registry schemas as the order form. */
-export function MeasurementsEditor({ saved, hasProfile }: { saved: SavedMeasurements; hasProfile: boolean }) {
-  const [editing, setEditing] = useState<string | null>(null);
-  const [adding, setAdding] = useState("");
-  const savedKeys = Object.keys(saved);
-  const unsaved = PROFILE_CATEGORIES.filter((c) => !savedKeys.includes(c.key));
+/**
+ * Every active measurement in the library, grouped, with how-to-measure help.
+ * Saved values prefill any order form that asks for the same measurement.
+ */
+export function MeasurementsEditor({
+  saved,
+  library,
+  helpImageUrls,
+  hasProfile,
+}: {
+  saved: SavedMeasurements;
+  library: MeasurementDef[];
+  helpImageUrls: Record<string, string>;
+  hasProfile: boolean;
+}) {
+  const [editing, setEditing] = useState(false);
+  const fields = useMemo(() => libraryFields(library), [library]);
+  const groups = Object.entries(MEASUREMENT_GROUP_LABELS) as Array<[MeasurementGroup, string]>;
 
   if (!hasProfile) {
     return <p className="text-sm text-muted-foreground">Save your contact details first, then add measurements here.</p>;
   }
+  if (editing) return <EditForm saved={saved} fields={fields} helpImageUrls={helpImageUrls} onDone={() => setEditing(false)} />;
 
+  const savedCount = fields.filter((f) => saved[f.key] !== undefined).length;
   return (
     <div className="space-y-4">
-      {savedKeys.length === 0 && !editing ? (
-        <p className="text-sm text-muted-foreground">
-          Nothing saved yet. Measurements you enter on an order are saved here automatically.
-        </p>
+      {savedCount === 0 ? (
+        <p className="text-sm text-muted-foreground">Nothing saved yet. Measurements you enter on an order are saved here automatically.</p>
       ) : null}
-
-      {savedKeys.map((key) => {
-        const def = getCategory(key);
-        return editing === key ? (
-          <CategoryEditor key={key} category={key} values={saved[key]} onDone={() => setEditing(null)} />
-        ) : (
-          <div key={key} className="rounded-xl border border-white/10 p-4">
-            <div className="flex items-center justify-between gap-2">
-              <h3 className="font-medium">{def.label}</h3>
-              <div className="flex gap-1">
-                <Button variant="ghost" size="sm" onClick={() => setEditing(key)}>
-                  Edit
-                </Button>
-                <RemoveButton category={key} />
-              </div>
-            </div>
-            <dl className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1 text-sm sm:grid-cols-3">
-              {def.fields
-                .filter((f) => saved[key][f.key] !== undefined)
-                .map((f) => (
-                  <div key={f.key}>
-                    <dt className="text-xs text-muted-foreground">{f.label}</dt>
-                    <dd>
-                      {String(saved[key][f.key])}
-                      {f.input === "number" && f.unit ? ` ${f.unit}` : ""}
-                    </dd>
-                  </div>
-                ))}
+      {groups.map(([group, label], g) => {
+        const inGroup = fields.filter((f) => f.section === g);
+        if (inGroup.length === 0) return null;
+        return (
+          <div key={group} className="rounded-xl border border-white/10 p-4">
+            <h3 className="font-medium">{label}</h3>
+            <dl className="mt-2 grid grid-cols-2 gap-x-4 gap-y-2 text-sm sm:grid-cols-3">
+              {inGroup.map((f) => (
+                <div key={f.key}>
+                  <dt className="text-xs text-muted-foreground">{f.label}</dt>
+                  <dd className={saved[f.key] === undefined ? "text-white/35" : undefined}>
+                    {saved[f.key] === undefined ? "—" : `${saved[f.key]} ${f.unit}`}
+                  </dd>
+                </div>
+              ))}
             </dl>
           </div>
         );
       })}
-
-      {editing && !savedKeys.includes(editing) ? (
-        <CategoryEditor category={editing} values={{}} onDone={() => setEditing(null)} />
-      ) : null}
-
-      {!editing && unsaved.length > 0 ? (
-        <div className="flex gap-2">
-          <select
-            aria-label="Add measurements for"
-            value={adding}
-            onChange={(e) => setAdding(e.target.value)}
-            className="h-10 flex-1 rounded-lg border border-input bg-transparent px-3 text-sm"
-          >
-            <option value="">Add measurements for…</option>
-            {unsaved.map((c) => (
-              <option key={c.key} value={c.key}>
-                {c.label}
-              </option>
-            ))}
-          </select>
-          <Button variant="outline" size="lg" disabled={!adding} onClick={() => (setEditing(adding), setAdding(""))}>
-            Add
-          </Button>
-        </div>
-      ) : null}
+      <Button variant="outline" size="lg" onClick={() => setEditing(true)}>
+        {savedCount ? "Edit measurements" : "Add measurements"}
+      </Button>
     </div>
   );
 }
 
-function CategoryEditor({ category, values, onDone }: { category: string; values: Record<string, unknown>; onDone: () => void }) {
-  const def = getCategory(category);
+function EditForm({
+  saved,
+  fields,
+  helpImageUrls,
+  onDone,
+}: {
+  saved: SavedMeasurements;
+  fields: ReturnType<typeof libraryFields>;
+  helpImageUrls: Record<string, string>;
+  onDone: () => void;
+}) {
   const [pending, start] = useTransition();
   const [error, setError] = useState<string | null>(null);
-  type Values = { details: Record<string, unknown> };
-  const form = useForm<Values>({
-    // The registry schema coerces the number inputs, so input and output differ.
-    resolver: zodResolver(z.object({ details: def.schema })) as unknown as Resolver<Values>,
-    defaultValues: { details: values },
-  });
+  // Same validation as the server action: every value optional, each checked against the library.
+  const resolver: Resolver<Values> = async (values) => {
+    const r = validateDetails(fields, values.details);
+    if (r.ok) return { values: { details: r.value }, errors: {} };
+    const details = Object.fromEntries(Object.entries(r.fieldErrors).map(([k, message]) => [k, { type: "validate", message }]));
+    return { values: {} as Record<string, never>, errors: { details } as FieldErrors<Values> };
+  };
+  const form = useForm<Values>({ resolver, defaultValues: { details: saved } });
+  const values = useWatch({ control: form.control, name: "details" });
+  const groups = Object.values(MEASUREMENT_GROUP_LABELS);
 
   const onSubmit = form.handleSubmit((data) =>
     start(async () => {
-      const res = await saveMeasurementsAction(category, data.details);
+      const res = await saveMeasurementsAction(data.details);
       if (res.ok) return onDone();
       setError(res.error);
       for (const [path, message] of Object.entries(res.fieldErrors ?? {})) form.setError(path as "details", { message });
@@ -111,37 +106,38 @@ function CategoryEditor({ category, values, onDone }: { category: string; values
   );
 
   return (
-    <form onSubmit={onSubmit} className="space-y-4 rounded-xl border border-white/20 p-4">
-      <h3 className="font-medium">{def.label}</h3>
-      <CategoryFields
-        fields={def.fields}
-        register={form.register as unknown as UseFormRegister<FieldValues>}
-        errors={form.formState.errors}
-        idPrefix={`m-${category}`}
-      />
-      {error ? <p className="text-sm text-destructive" role="alert">{error}</p> : null}
+    <form onSubmit={onSubmit} noValidate className="space-y-6">
+      {groups.map((label, g) => {
+        const inGroup = fields.filter((f) => f.section === g);
+        if (inGroup.length === 0) return null;
+        return (
+          <fieldset key={label} className="space-y-3 rounded-xl border border-white/15 p-4">
+            <legend className="px-1 font-medium">{label}</legend>
+            <CategoryFields
+              fields={inGroup}
+              register={form.register as unknown as UseFormRegister<FieldValues>}
+              errors={form.formState.errors}
+              values={values ?? {}}
+              helpImageUrls={helpImageUrls}
+              idPrefix="m"
+            />
+          </fieldset>
+        );
+      })}
+      <p className="text-xs text-muted-foreground">Leave a box empty to remove that measurement.</p>
+      {error ? (
+        <p className="text-sm text-destructive" role="alert">
+          {error}
+        </p>
+      ) : null}
       <div className="flex gap-2">
-        <Button type="submit" disabled={pending}>
-          {pending ? "Saving…" : "Save"}
+        <Button type="submit" size="lg" disabled={pending}>
+          {pending ? "Saving…" : "Save measurements"}
         </Button>
-        <Button type="button" variant="ghost" onClick={onDone}>
+        <Button type="button" size="lg" variant="ghost" onClick={onDone}>
           Cancel
         </Button>
       </div>
     </form>
-  );
-}
-
-function RemoveButton({ category }: { category: string }) {
-  const [pending, start] = useTransition();
-  return (
-    <Button
-      variant="ghost"
-      size="sm"
-      disabled={pending}
-      onClick={() => start(async () => void (await removeMeasurementsAction(category)))}
-    >
-      Remove
-    </Button>
   );
 }

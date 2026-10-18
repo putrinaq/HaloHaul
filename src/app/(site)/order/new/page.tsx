@@ -2,10 +2,12 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { Suspense } from "react";
 import { getDb } from "@/db/client";
-import { getCategory } from "@/domain/categories";
+import { findCategory } from "@/domain/catalog";
 import { isBatchShippingMode, PATH_TYPES, type PathType } from "@/domain/enums";
 import type { OrderFormInput } from "@/domain/orderInput";
 import { getNextCutoffs, getPublishedShowcaseById, getSettings } from "@/server/data/catalog";
+import { getCatalog } from "@/server/data/categories";
+import { helpImageUrls } from "@/server/photos";
 import { getProfile } from "@/server/data/customer";
 import { getSessionUser } from "@/server/session";
 import { getPhotoStore } from "@/server/storage";
@@ -39,7 +41,8 @@ async function NewOrder({ searchParams }: { searchParams: PageProps<"/order/new"
   const db = getDb();
   const now = new Date();
   const showcaseId = one(params.showcase);
-  const [settings, profile, cutoffs, showcase] = await Promise.all([
+  const [catalog, settings, profile, cutoffs, showcase] = await Promise.all([
+    getCatalog(db),
     getSettings(db),
     getProfile(db, user.id),
     getNextCutoffs(db, now),
@@ -55,11 +58,12 @@ async function NewOrder({ searchParams }: { searchParams: PageProps<"/order/new"
   };
   const path = one(params.path);
   if (path && (PATH_TYPES as readonly string[]).includes(path)) initial.pathType = path as PathType;
-  if (initial.pathType === "digital") Object.assign(initial, { category: "digital", shippingMode: "none" });
+  const digital = catalog.categories.filter((c) => c.fulfilment === "digital");
+  if (initial.pathType === "digital") Object.assign(initial, { category: digital.length === 1 ? digital[0].key : "", shippingMode: "none" });
 
   let prefillNote: string | null = null;
   if (showcase) {
-    const category = showcase.category && safeCategory(showcase.category);
+    const category = findCategory(catalog, showcase.category)?.key;
     Object.assign(initial, {
       pathType: showcase.productUrl ? "url" : "consultation",
       productUrl: showcase.productUrl ?? "",
@@ -78,6 +82,8 @@ async function NewOrder({ searchParams }: { searchParams: PageProps<"/order/new"
     <OrderForm
       initial={initial}
       settings={settings}
+      catalog={catalog}
+      helpImageUrls={await helpImageUrls(getPhotoStore(), catalog)}
       nextCutoffs={nextCutoffs}
       savedMeasurements={profile?.savedMeasurements ?? {}}
       uploadsEnabled={getPhotoStore() !== null}
@@ -85,12 +91,4 @@ async function NewOrder({ searchParams }: { searchParams: PageProps<"/order/new"
       prefillNote={prefillNote}
     />
   );
-}
-
-function safeCategory(key: string): string | null {
-  try {
-    return getCategory(key).key;
-  } catch {
-    return null;
-  }
 }

@@ -60,7 +60,10 @@ function friendly(error: { status?: number; code?: string; message?: string }, f
 export function SignInForm() {
   const router = useRouter();
   const params = useSearchParams();
-  const next = safeNext(params.get("next"));
+  const askedFor = params.get("next");
+  const next = safeNext(askedFor);
+  /** Admins land in the console unless a page asked for somewhere specific. */
+  const adminNext = askedFor ? next : "/admin";
 
   const [mode, setMode] = useState<Mode>("link");
   const [email, setEmail] = useState("");
@@ -149,7 +152,14 @@ export function SignInForm() {
         const { data, error } = await authClient.signIn.email({ email: values.email!, password: values.password! });
         if (error) return friendly(error, "We couldn't sign you in. Try again.");
         if (data && "twoFactorRedirect" in data && data.twoFactorRedirect) {
-          router.push(`/admin/two-factor?next=${encodeURIComponent(next)}`);
+          router.push(`/admin/two-factor?next=${encodeURIComponent(adminNext)}`);
+          return null;
+        }
+        const role = data && "user" in data ? (data.user as { role?: string }).role : undefined;
+        if (role === "admin") {
+          // Without 2FA yet, /admin sends them on to set it up.
+          router.push(adminNext);
+          router.refresh();
           return null;
         }
         done();
