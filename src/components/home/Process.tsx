@@ -26,7 +26,7 @@ const STEPS = [
 export function Process() {
   return (
     <section className="mx-auto max-w-6xl px-4 py-12 sm:py-16">
-      <SectionHeading eyebrow="How it works" title="The Process" lede="Four steps, nothing hidden." />
+      <SectionHeading title="The Process" lede="Four steps, nothing hidden." />
       <ol className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
         {STEPS.map((s, i) => (
           <li

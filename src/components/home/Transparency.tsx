@@ -25,7 +25,6 @@ export function Transparency() {
     <section className="mx-auto grid max-w-6xl gap-4 px-4 py-12 sm:py-16 lg:grid-cols-[5fr_7fr] lg:gap-16">
       <div className="lg:sticky lg:top-32 lg:self-start">
         <SectionHeading
-          eyebrow="Our promise"
           title="Built on transparency"
           lede="Nothing hidden, nothing bundled."
           className="lg:mb-0"

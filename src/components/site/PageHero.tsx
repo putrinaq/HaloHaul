@@ -7,12 +7,10 @@ import { RibbonVideo } from "./RibbonVideo";
  * glass floats over the light as in the modal design, then fades to black.
  */
 export function PageHero({
-  eyebrow,
   title,
   lede,
   children,
 }: {
-  eyebrow: string;
   title: string;
   lede: ReactNode;
   children?: ReactNode;
@@ -20,10 +18,7 @@ export function PageHero({
   return (
     <header className="relative isolate px-4 pt-14 pb-16 text-center sm:pt-20 sm:pb-24">
       <RibbonVideo className="-top-40 -bottom-72 -z-10" />
-      <p className="intro-fade mx-auto inline-flex rounded-full border border-white/12 bg-white/5 px-3.5 py-1.5 text-xs text-white/75 backdrop-blur-md" style={{ "--d": 0 }}>
-        {eyebrow}
-      </p>
-      <h1 className="display mt-6 text-5xl leading-[1.02] sm:text-7xl">
+      <h1 className="display text-5xl leading-[1.02] sm:text-7xl">
         <span className="line-mask">
           <span className="intro-rise" style={{ "--d": 0 }}>
             {title}

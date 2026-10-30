@@ -26,7 +26,7 @@ const CARDS = [
 export function StartCards() {
   return (
     <section className="mx-auto max-w-6xl px-4 py-12 sm:py-16">
-      <SectionHeading eyebrow="Get started" title="How would you like to start?" />
+      <SectionHeading title="How would you like to start?" />
       {/* Three cards: a swipeable row on phones, a grid from tablets up. */}
       <div
         role="list"

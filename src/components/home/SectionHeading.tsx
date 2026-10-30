@@ -1,15 +1,13 @@
 import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
 
-/** Eyebrow, masked serif title, optional lede and action, then a drawn rule. */
+/** Masked serif title, optional lede and action, then a drawn rule. */
 export function SectionHeading({
-  eyebrow,
   title,
   lede,
   action,
   className,
 }: {
-  eyebrow: string;
   title: ReactNode;
   lede?: ReactNode;
   action?: ReactNode;
@@ -19,10 +17,7 @@ export function SectionHeading({
     <header className={cn("mb-8 sm:mb-10", className)}>
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between sm:gap-6">
         <div>
-          <p data-scroll-defer className="eyebrow reveal">
-            {eyebrow}
-          </p>
-          <h2 data-scroll-defer className="display line-mask mt-3 text-4xl leading-[1.05] sm:text-6xl" style={{ "--d": 1 }}>
+          <h2 data-scroll-defer className="display line-mask text-4xl leading-[1.05] sm:text-6xl" style={{ "--d": 1 }}>
             <span>{title}</span>
           </h2>
         </div>

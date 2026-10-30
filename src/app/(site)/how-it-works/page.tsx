@@ -57,7 +57,6 @@ export default function HowItWorksPage() {
   return (
     <div className="relative isolate overflow-x-clip">
       <PageHero
-        eyebrow="Five steps · every fee upfront"
         title="How it works"
         lede="A personal buyer for China's marketplaces, with every fee shown before you pay."
       >

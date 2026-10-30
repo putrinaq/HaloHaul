@@ -25,10 +25,7 @@ export default function SignInPage() {
 
       <div className="mx-auto grid w-full max-w-6xl items-center gap-10 px-4 py-10 sm:py-14 lg:grid-cols-[1fr_27rem] lg:gap-20 lg:py-20">
         <section className="max-lg:text-center">
-          <p className="eyebrow intro-fade" style={{ "--d": 0 }}>
-            Welcome to HaloHaul
-          </p>
-          <h1 className="display mt-4 text-4xl leading-[1.04] sm:text-5xl lg:text-7xl">
+          <h1 className="display text-4xl leading-[1.04] sm:text-5xl lg:text-7xl">
             <span className="line-mask">
               <span className="intro-rise" style={{ "--d": 0 }}>
                 Every haul,

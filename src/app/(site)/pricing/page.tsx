@@ -32,7 +32,6 @@ export default function PricingPage() {
   return (
     <div className="relative isolate overflow-x-clip">
       <PageHero
-        eyebrow="Every fee upfront · in ringgit"
         title="Pricing"
         lede="What each service costs and when you pay. Nothing is bought until you've seen the full quote and said yes."
       >

@@ -21,7 +21,6 @@ export default function CataloguePage() {
   return (
     <div className="relative isolate overflow-x-clip">
       <PageHero
-        eyebrow="Real orders · real savings"
         title="What people bought"
         lede="Recent HaloHaul orders, with the usual retail price next to what people paid, fees included."
       />

@@ -71,7 +71,6 @@ export function CutoffsSection({ children }: { children: React.ReactNode }) {
   return (
     <section className="mx-auto max-w-6xl px-4 py-12 sm:py-16">
       <SectionHeading
-        eyebrow="Shipping"
         title="Next Shipment Cutoff"
         action={
           <Link href="/shipping" className="group -ml-1 flex min-h-11 items-center gap-1 px-1 text-sm text-white/80 hover:text-white sm:ml-0 sm:min-h-0 sm:px-0">

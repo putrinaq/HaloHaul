@@ -22,7 +22,6 @@ export async function Showcase() {
     <ScrollScope>
       <section className="mx-auto max-w-6xl px-4 py-12 sm:py-16">
         <SectionHeading
-          eyebrow="Recent orders"
           title="What people bought recently"
           lede="Real orders. Real savings. All fees included in the HaloHaul price."
           action={

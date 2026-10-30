@@ -24,10 +24,7 @@ export function Hero() {
       <div className="absolute inset-0 -z-10 bg-linear-to-b from-black/45 via-black/10 to-black" />
 
       <div data-scroll-defer data-scroll-css-progress className="hero-exit mx-auto flex max-w-5xl flex-col items-center px-4 text-center">
-        <p className="eyebrow intro-fade" style={{ "--d": 0 }}>
-          China → Malaysia, handled for you
-        </p>
-        <h1 className="display mt-4 text-[2.75rem] leading-[1.02] sm:mt-5 text-white sm:text-7xl lg:text-[5.5rem]">
+        <h1 className="display text-[2.75rem] leading-[1.02] text-white sm:text-7xl lg:text-[5.5rem]">
           <span className="line-mask">
             <span className="intro-rise" style={{ "--d": 0 }}>
               Your personal buyer

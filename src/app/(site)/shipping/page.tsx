@@ -19,7 +19,6 @@ export default function ShippingPage() {
   return (
     <div className="relative isolate overflow-x-clip">
       <PageHero
-        eyebrow="Consolidated batches · air and sea"
         title="Shipping schedule"
         lede="Orders travel together in batches, and each shipping mode has its own cutoff."
       />

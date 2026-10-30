@@ -191,7 +191,7 @@ function groups(s: Settings): Group[] {
 export default function FaqPage() {
   return (
     <div className="relative isolate overflow-x-clip">
-      <PageHero eyebrow="Questions students ask" title="FAQ" lede="Quick answers about ordering, costs, payment, shipping and pickup.">
+      <PageHero title="FAQ" lede="Quick answers about ordering, costs, payment, shipping and pickup.">
         <SectionTabs
           items={[
             { href: "#ordering", label: "Ordering" },
