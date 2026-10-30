@@ -41,9 +41,20 @@ export const settingsSchema = z.object({
   fees: z
     .object({
       coordinationFeeSen: sen.default(600),
+      /**
+       * During a promotion: the regular coordination fee, shown crossed out
+       * next to the one charged. Null shows no discount.
+       */
+      coordinationFeeRegularSen: sen.nullable().default(null),
+      /** Short tag for the promotion, e.g. "Opening price". */
+      coordinationFeePromoLabel: z.string().trim().max(40).default(""),
       reverseSearchFeeSen: sen.default(400),
       consultationFeeSen: sen.default(2500),
       lalamoveFeeSen: sen.default(300),
+    })
+    .refine((f) => f.coordinationFeeRegularSen === null || f.coordinationFeeRegularSen > f.coordinationFeeSen, {
+      message: "The regular price must be higher than the fee charged",
+      path: ["coordinationFeeRegularSen"],
     })
     .prefault({}),
   fx: z

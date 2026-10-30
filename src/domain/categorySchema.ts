@@ -334,6 +334,7 @@ export function mergeMeasurements(saved: SavedMeasurements, def: CategoryDefinit
 }
 
 export const MEASUREMENT_GROUP_LABELS: Record<MeasurementGroup, string> = {
+  body: "Height & weight",
   upper_body: "Upper body",
   lower_body: "Lower body",
   feet: "Feet",

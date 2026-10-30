@@ -7,9 +7,10 @@ import { NavUser } from "./NavUser";
 
 const links: { href: string; label: string; className?: string }[] = [
   { href: "/how-it-works", label: "How it works" },
-  { href: "/shipping", label: "Shipping" },
-  // From lg only: at md widths the pill would be too tight with three links.
-  { href: "/catalogue", label: "Catalogue", className: "hidden lg:inline" },
+  { href: "/pricing", label: "Pricing" },
+  // From lg/xl only: at md widths the pill is too tight for more than two links.
+  { href: "/shipping", label: "Shipping", className: "hidden lg:inline" },
+  { href: "/catalogue", label: "Catalogue", className: "hidden xl:inline" },
 ];
 
 /**

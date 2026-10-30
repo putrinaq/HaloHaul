@@ -309,11 +309,11 @@ export function SignInForm() {
                     <>
                       By creating an account you agree to our{" "}
                       <Link href="/terms" className="link-underline tap-area text-white/85">
-                        Terms
+                        Terms &amp; Conditions
                       </Link>{" "}
                       and{" "}
-                      <Link href="/terms#privacy" className="link-underline tap-area text-white/85">
-                        PDPA notice
+                      <Link href="/privacy" className="link-underline tap-area text-white/85">
+                        Privacy Policy
                       </Link>
                       .
                     </>

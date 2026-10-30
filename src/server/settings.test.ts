@@ -32,6 +32,7 @@ const info = {
   defaultHeightMm: 150,
   allowedShippingModes: ["air" as const, "sea" as const],
   restrictedNote: null,
+  aliases: [] as string[],
   isActive: true,
 };
 const head = { kind: "number", key: "head_cm", label: "Head", unit: "cm", min: 40, max: 70, step: 0.5, required: true };
@@ -102,16 +103,20 @@ describe("categories", () => {
     expect((await getCatalog(db)).categories.some((c) => c.key === "ring")).toBe(false);
   });
 
+  it("cleans search words before saving", async () => {
+    const id = await createCategory(db, ADMIN, { ...info, key: "caps", aliases: [" topi ", "Topi", "", "帽子", "baseball   cap"] });
+    const [row] = await db.select().from(categories).where(eq(categories.id, id));
+    expect(row.aliases).toEqual(["topi", "帽子", "baseball cap"]);
+  });
+
   it("deletes a never-published category", async () => {
     const id = await createCategory(db, ADMIN, { ...info, key: "scratch" });
     await deleteCategory(db, ADMIN, id);
     expect(await db.select().from(categories).where(eq(categories.id, id))).toEqual([]);
   });
 
-  it("digital categories only offer no shipping", async () => {
-    const id = await createCategory(db, ADMIN, { ...info, key: "game_credit", fulfilment: "digital" });
-    const [row] = await db.select().from(categories).where(eq(categories.id, id));
-    expect(row.allowedShippingModes).toEqual(["none"]);
+  it("refuses new digital categories", async () => {
+    await expect(createCategory(db, ADMIN, { ...info, key: "game_credit", fulfilment: "digital" })).rejects.toThrow(/must be physical/);
   });
 });
 

@@ -4,7 +4,7 @@ import { validateOrderInput, type OrderFormInput } from "./orderInput";
 
 const catalog = seedCatalog();
 
-const top = { chest_cm: 96, shoulder_cm: 44, arm_length_cm: 62, body_length_cm: 70 };
+const top = { height_cm: 172, weight_kg: 63, chest_cm: 96, shoulder_cm: 44, arm_length_cm: 62, body_length_cm: 70 };
 
 const valid: OrderFormInput = {
   pathType: "url",
@@ -50,8 +50,15 @@ describe("validateOrderInput", () => {
     });
   });
 
+  it("asks clothing for height and weight", () => {
+    const e = errors({ details: { chest_cm: 96, shoulder_cm: 44, arm_length_cm: 62, body_length_cm: 70 } });
+    expect(e).toEqual({ "details.height_cm": "Height (cm) is required", "details.weight_kg": "Weight (kg) is required" });
+    expect(errors({ details: { ...top, weight_kg: 52.35 } })["details.weight_kg"]).toMatch(/0\.1/);
+    expect(validateOrderInput({ ...valid, details: { ...top, weight_kg: 52.3 } }, catalog).ok).toBe(true);
+  });
+
   it("names a missing measurement and keeps the rest", () => {
-    const e = errors({ details: { chest_cm: 96, shoulder_cm: 44, arm_length_cm: 62 } });
+    const e = errors({ details: { height_cm: 172, weight_kg: 63, chest_cm: 96, shoulder_cm: 44, arm_length_cm: 62 } });
     expect(e).toEqual({ "details.body_length_cm": "Body length (cm) is required" });
   });
 
@@ -90,22 +97,13 @@ describe("validateOrderInput", () => {
     expect(e.remarks).toMatch(/Describe what you need/);
   });
 
-  it("keeps digital orders on the digital category with no shipping", () => {
-    const digital = {
-      pathType: "digital" as const,
-      productUrl: "",
-      category: "digital",
-      details: { region: "SEA", delivery_email: "me@example.com" },
-      variantText: "",
-      shippingMode: "none" as const,
-    };
-    expect(validateOrderInput({ ...valid, ...digital }, catalog)).toMatchObject({
-      ok: true,
-      value: { pathType: "digital", shippingMode: "none", conditionPreference: null, fulfilment: "campus_pickup" },
+  it("takes no new digital-product orders", () => {
+    // The path and the category still exist for old orders, but not for new ones.
+    expect(validateOrderInput({ ...valid, pathType: "digital" }, catalog)).toMatchObject({
+      ok: false,
+      fieldErrors: { pathType: "Choose how you'd like to start" },
     });
-    expect(errors({ ...digital, shippingMode: "air" }).shippingMode).toBe("Digital items don't ship");
-    expect(errors({ ...digital, category: "clothing_top", details: top }).category).toMatch(/digital product category/i);
-    expect(errors({ category: "digital", details: digital.details }).category).toMatch(/digital product/);
+    expect(errors({ category: "digital", details: { region: "SEA", delivery_email: "me@example.com" } }).category).toBe("Choose a category");
   });
 
   it("only offers PDD direct-ship for PDD links", () => {

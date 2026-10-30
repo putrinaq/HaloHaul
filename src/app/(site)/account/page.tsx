@@ -55,7 +55,12 @@ async function Account() {
 
       <section className="space-y-4">
         <h2 className="text-xl font-medium">Saved measurements</h2>
-        <p className="text-sm text-muted-foreground">Used to prefill your orders. Personal data — see our privacy notice.</p>
+        <p className="text-sm text-muted-foreground">Used to prefill your orders. This is personal data: see our{" "}
+          <Link href="/privacy#retention" className="underline underline-offset-2">
+            Privacy Policy
+          </Link>
+          .
+        </p>
         <MeasurementsEditor
           saved={profile?.savedMeasurements ?? {}}
           library={catalog.measurements}

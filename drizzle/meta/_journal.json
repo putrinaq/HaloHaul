@@ -43,6 +43,41 @@
       "when": 1792293528580,
       "tag": "0005_orders_category_version",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1792939896198,
+      "tag": "0006_deactivate_digital_category",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1792942139180,
+      "tag": "0007_category_aliases",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1792972041712,
+      "tag": "0008_clothing_height_weight",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1793368380981,
+      "tag": "0009_dress_without_length",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1793370185785,
+      "tag": "0010_order_drafts",
+      "breakpoints": true
     }
   ]
 }

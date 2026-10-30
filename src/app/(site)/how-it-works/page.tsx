@@ -2,11 +2,13 @@ import { ArrowRight, BatteryWarning, Package, Plane, Wallet } from "lucide-react
 import type { Metadata } from "next";
 import Link from "next/link";
 import { connection } from "next/server";
-import { Suspense } from "react";
+import { Suspense, type ReactNode } from "react";
 import { ScrollScope } from "@/components/motion/ScrollScope";
 import { PageHero } from "@/components/site/PageHero";
+import { Price } from "@/components/site/Price";
 import { SectionTabs } from "@/components/site/SectionTabs";
 import { getDb } from "@/db/client";
+import { coordinationFeeDisplay } from "@/domain/fees";
 import { formatMyr } from "@/lib/format";
 import { getSettings } from "@/server/data/catalog";
 
@@ -89,6 +91,10 @@ export default function HowItWorksPage() {
           <Suspense fallback={<div className="mt-6 h-64 animate-pulse rounded-xl bg-white/5" />}>
             <FeeRows />
           </Suspense>
+          <Link href="/pricing" className="link-underline tap-area mt-5 inline-flex items-center gap-1.5 text-sm text-white/80">
+            Shipping rates and a worked example
+            <ArrowRight className="size-3.5" aria-hidden />
+          </Link>
         </section>
 
         <section id="good-to-know" data-scroll-defer className="glass-panel reveal scroll-mt-28 p-5 sm:p-8">
@@ -117,11 +123,11 @@ export default function HowItWorksPage() {
             <p className="mt-4 text-center text-xs text-white/45">
               By ordering you agree to our{" "}
               <Link href="/terms" className="link-underline tap-area text-white/70">
-                Terms
+                Terms &amp; Conditions
               </Link>{" "}
               and{" "}
-              <Link href="/terms#privacy" className="link-underline tap-area text-white/70">
-                PDPA notice
+              <Link href="/privacy" className="link-underline tap-area text-white/70">
+                Privacy Policy
               </Link>
               .
             </p>
@@ -144,8 +150,9 @@ function PanelHeading({ title, caption }: { title: string; caption: string }) {
 async function FeeRows() {
   await connection();
   const s = await getSettings(getDb());
-  const rows: Array<[string, string, string]> = [
-    ["Coordination fee", formatMyr(s.fees.coordinationFeeSen), "Per order, on every quote"],
+  const fee = coordinationFeeDisplay(s);
+  const rows: Array<[string, ReactNode, string]> = [
+    ["Coordination fee", <Price key="fee" sen={fee.sen} wasSen={fee.wasSen} />, fee.label ? `${fee.label}. Per order, on every quote` : "Per order, on every quote"],
     ["Photo search", formatMyr(s.fees.reverseSearchFeeSen), "Paid before we search; credited if you order"],
     ["Consultation", formatMyr(s.fees.consultationFeeSen), "Paid before we research; credited if you order"],
     ["Lalamove delivery", formatMyr(s.fees.lalamoveFeeSen), "Optional, per person"],

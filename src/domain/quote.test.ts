@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { coordinationFeeSen, deliveryFeeSen, upfrontFee } from "./fees";
+import { coordinationFeeDisplay, coordinationFeeSen, deliveryFeeSen, upfrontFee } from "./fees";
 import { parseFxRate } from "./money";
 import { computeQuote } from "./quote";
 import { DEFAULT_SETTINGS, parseSettings } from "./settings";
@@ -24,6 +24,18 @@ describe("fees", () => {
     const s = parseSettings({ fees: { coordinationFeeSen: 800 } });
     expect(coordinationFeeSen(s)).toBe(800);
     expect(s.fees.consultationFeeSen).toBe(2_500); // untouched defaults survive
+  });
+
+  it("shows the regular coordination fee crossed out only during a promotion", () => {
+    expect(coordinationFeeDisplay(DEFAULT_SETTINGS)).toEqual({ sen: 600, wasSen: null, label: "" });
+    const promo = parseSettings({ fees: { coordinationFeeSen: 200, coordinationFeeRegularSen: 600, coordinationFeePromoLabel: " Opening price " } });
+    expect(coordinationFeeDisplay(promo)).toEqual({ sen: 200, wasSen: 600, label: "Opening price" });
+    // The quote charges the promotional fee, not the crossed-out one.
+    expect(coordinationFeeSen(promo)).toBe(200);
+  });
+
+  it("refuses a regular price that isn't higher than the fee charged", () => {
+    expect(() => parseSettings({ fees: { coordinationFeeSen: 600, coordinationFeeRegularSen: 600 } })).toThrow(/must be higher/);
   });
 });
 

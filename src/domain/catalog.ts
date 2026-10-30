@@ -13,6 +13,8 @@ export interface CategoryInfo {
   key: string;
   name: string;
   icon: string;
+  /** Other words students search for it by (synonyms, Malay, Chinese). */
+  aliases: string[];
   fulfilment: CategoryFulfilment;
   /** Per-item default parcel used for the shipping estimate. */
   defaultParcel: Parcel;

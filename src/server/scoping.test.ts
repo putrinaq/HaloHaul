@@ -16,7 +16,7 @@ let db: TestDb;
 let close: () => Promise<void>;
 const now = new Date("2026-10-14T02:00:00Z");
 
-const top = { chest_cm: 96, shoulder_cm: 44, arm_length_cm: 62, body_length_cm: 70 };
+const top = { height_cm: 172, weight_kg: 63, chest_cm: 96, shoulder_cm: 44, arm_length_cm: 62, body_length_cm: 70 };
 const input = (over: Partial<OrderFormInput> = {}): OrderFormInput => ({
   pathType: "url",
   productUrl: "https://item.taobao.com/item.htm?id=1",
@@ -86,7 +86,14 @@ describe("submitOrder", () => {
     const before = (await listOrdersForCustomer(db, ALICE)).length;
     const r = await submitOrder(db, ALICE, input({ details: { chest_cm: 96 } }), now);
     expect(r.ok).toBe(false);
-    if (!r.ok) expect(Object.keys(r.fieldErrors).sort()).toEqual(["details.arm_length_cm", "details.body_length_cm", "details.shoulder_cm"]);
+    if (!r.ok)
+      expect(Object.keys(r.fieldErrors).sort()).toEqual([
+        "details.arm_length_cm",
+        "details.body_length_cm",
+        "details.height_cm",
+        "details.shoulder_cm",
+        "details.weight_kg",
+      ]);
     expect((await listOrdersForCustomer(db, ALICE)).length).toBe(before);
   });
 

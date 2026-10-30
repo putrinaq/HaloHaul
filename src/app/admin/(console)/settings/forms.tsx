@@ -51,7 +51,9 @@ export function FeesForm({ settings }: { settings: Settings }) {
     reverse: minorToInput(f.reverseSearchFeeSen),
     consultation: minorToInput(f.consultationFeeSen),
     lalamove: minorToInput(f.lalamoveFeeSen),
+    coordinationRegular: minorToInput(f.coordinationFeeRegularSen),
   });
+  const [promoLabel, setPromoLabel] = useState(f.coordinationFeePromoLabel);
   const [cap, setCap] = useState(String(settings.shipping.overRangeCapPct));
   const [validDays, setValidDays] = useState(String(settings.quote.validDays));
   const { pending, error, save, run, done } = useSave();
@@ -63,6 +65,8 @@ export function FeesForm({ settings }: { settings: Settings }) {
       reverseSearchFeeSen: parseMinor(values.reverse),
       consultationFeeSen: parseMinor(values.consultation),
       lalamoveFeeSen: parseMinor(values.lalamove),
+      coordinationFeeRegularSen: parseMinor(values.coordinationRegular),
+      coordinationFeePromoLabel: promoLabel,
     });
   }
   function saveRules() {
@@ -88,7 +92,7 @@ export function FeesForm({ settings }: { settings: Settings }) {
       >
         {(
           [
-            ["coordination", "Coordination fee (link orders, per item)"],
+            ["coordination", "Coordination fee (per order)"],
             ["reverse", "Photo search fee"],
             ["consultation", "Consultation fee"],
             ["lalamove", "Lalamove delivery"],
@@ -98,6 +102,22 @@ export function FeesForm({ settings }: { settings: Settings }) {
             <MoneyInput id={`${id}-${k}`} currency="RM" value={values[k]} onChange={set(k)} />
           </Field>
         ))}
+        <div className="space-y-4 rounded-xl border border-white/10 p-4">
+          <p className="text-sm text-white/70">
+            Coordination fee promotion. Students see the regular price crossed out next to the fee above, which is what
+            quotes charge. Leave the regular price empty to show no discount.
+          </p>
+          <Field
+            label="Regular coordination fee — optional"
+            htmlFor={`${id}-regular`}
+            hint="Use a price you really charge outside the promotion."
+          >
+            <MoneyInput id={`${id}-regular`} currency="RM" value={values.coordinationRegular} onChange={set("coordinationRegular")} />
+          </Field>
+          <Field label="Promotion label — optional" htmlFor={`${id}-promo`} hint="Shown next to the price, e.g. “Opening price”.">
+            <input id={`${id}-promo`} value={promoLabel} maxLength={40} onChange={(e) => setPromoLabel(e.target.value)} className="admin-input" />
+          </Field>
+        </div>
       </Card>
       <Card
         title="Rules"

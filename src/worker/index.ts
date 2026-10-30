@@ -1,13 +1,16 @@
 // Background worker: a separate process from the same codebase, running
 // pg-boss on Postgres (no Redis). Jobs:
 //   batch-auto-lock — every 5 minutes, locks open batches past their cutoff.
+//   drafts-cleanup  — daily, removes cart items nobody touched for 90 days.
 // Notification emails are switched off for now (see server/notify.ts).
 import { PgBoss } from "pg-boss";
 import { createDb, getPool } from "../db/client";
+import { deleteStaleDrafts } from "../server/jobs/draftCleanup";
 import { lockDueBatches } from "../server/jobs/batchLock";
 import { env } from "../server/env";
 
 const AUTO_LOCK = "batch-auto-lock";
+const DRAFTS_CLEANUP = "drafts-cleanup";
 
 async function main() {
   const e = env();
@@ -27,6 +30,13 @@ async function main() {
   await boss.work(AUTO_LOCK, async () => {
     const locked = await lockDueBatches(db);
     for (const b of locked) console.log(`[worker] locked ${b.code} (${b.orderCount}/${b.minOrders})${b.belowMin ? " below minimum" : ""}`);
+  });
+  // Cart items can hold measurements: don't keep forgotten ones.
+  await boss.createQueue(DRAFTS_CLEANUP);
+  await boss.schedule(DRAFTS_CLEANUP, "15 4 * * *", null, { tz: "Asia/Kuala_Lumpur" });
+  await boss.work(DRAFTS_CLEANUP, async () => {
+    const removed = await deleteStaleDrafts(db);
+    if (removed) console.log(`[worker] removed ${removed} stale cart item${removed === 1 ? "" : "s"}`);
   });
   console.log("[worker] started");
 

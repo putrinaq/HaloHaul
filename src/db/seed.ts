@@ -109,7 +109,7 @@ async function seedDemo(db: ReturnType<typeof createDb>, e: ReturnType<typeof en
       displayName: "Ahmad Nazri",
       phone: "+60123456789",
       campus: "Main campus",
-      savedMeasurements: { chest_cm: 96, shoulder_cm: 44, arm_length_cm: 62, body_length_cm: 70 },
+      savedMeasurements: { height_cm: 172, weight_kg: 63, chest_cm: 96, shoulder_cm: 44, arm_length_cm: 62, body_length_cm: 70 },
     });
     console.log(`[seed] demo student ${email} / demo-password-123`);
   }
@@ -152,7 +152,7 @@ async function seedDemo(db: ReturnType<typeof createDb>, e: ReturnType<typeof en
           platform: "taobao",
           productUrl: "https://item.taobao.com/item.htm?id=000000000001",
           categoryVersionId: versionOf("clothing_top"),
-          details: { chest_cm: 96, shoulder_cm: 44, arm_length_cm: 62, body_length_cm: 70 },
+          details: { height_cm: 172, weight_kg: 63, chest_cm: 96, shoulder_cm: 44, arm_length_cm: 62, body_length_cm: 70 },
           variantText: "White / L",
           shippingMode: "air",
           remarks: "Canvas sneakers listing — demo",
@@ -163,7 +163,7 @@ async function seedDemo(db: ReturnType<typeof createDb>, e: ReturnType<typeof en
           pathType: "reverse_search",
           platform: "rednote",
           categoryVersionId: versionOf("dress"),
-          details: { chest_cm: 86, waist_cm: 70, hip_cm: 94, length_cm: 110 },
+          details: { height_cm: 160, weight_kg: 52, chest_cm: 86, waist_cm: 70, hip_cm: 94 },
           variantText: "Polka dot, navy",
           conditionPreference: "either",
           shippingMode: "sea",

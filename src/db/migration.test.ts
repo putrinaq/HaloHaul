@@ -1,17 +1,17 @@
-// Migrations 0003–0005: the code registry becomes database categories. Runs the
+// Migrations 0003–0009: the code registry becomes database categories. Runs the
 // old schema, inserts old-style data, then applies the new migrations on top.
 import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { PGlite } from "@electric-sql/pglite";
-import { eq, sql } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/pglite";
 import { migrate } from "drizzle-orm/pglite/migrator";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { definitionSchema } from "../domain/categoryDefinition";
 import { resolveFields, validateDetails } from "../domain/categorySchema";
 import * as schema from "./schema";
-import { SEED_CATEGORIES } from "./seed/catalog";
+import { BODY_MEASUREMENT_KEYS, SEED_CATEGORIES, SEED_MEASUREMENTS } from "./seed/catalog";
 
 const MIGRATIONS = path.resolve(__dirname, "../../drizzle");
 let client: PGlite;
@@ -75,6 +75,17 @@ beforeAll(async () => {
     JSON.stringify("not an object"),
   ]);
 
+  // An admin's unpublished draft for Dress, waiting when 0008 arrives.
+  const upTo0007 = migrationsUpTo("0007_category_aliases");
+  await migrate(db, { migrationsFolder: upTo0007 });
+  rmSync(upTo0007, { recursive: true, force: true });
+  await client.query(
+    `INSERT INTO category_versions (category_id, version, status, definition)
+     SELECT c.id, 2, 'draft', jsonb_set(v.definition, '{sections,0,fields}', (v.definition #> '{sections,0,fields}') || $1::jsonb)
+     FROM categories c JOIN category_versions v ON v.id = c.current_published_version_id WHERE c.key = 'dress'`,
+    [JSON.stringify([{ kind: "text", key: "fit_note", label: "Fit", maxLength: 200, required: false }])],
+  );
+
   await migrate(db, { migrationsFolder: MIGRATIONS });
 }, 60_000);
 
@@ -84,16 +95,104 @@ afterAll(async () => {
 });
 
 describe("categories migration", () => {
-  it("loads every seed category with a published version 1 and the measurement library", async () => {
+  it("ends with every seed category published exactly as the seed defines it today, and the full library", async () => {
     const cats = await db.select().from(schema.categories);
     expect(cats.map((c) => c.key).sort()).toEqual(SEED_CATEGORIES.map((c) => c.key).sort());
-    for (const c of cats) expect(c.currentPublishedVersionId, c.key).not.toBeNull();
-    const versions = await db.select().from(schema.categoryVersions);
-    expect(versions.every((v) => v.version === 1 && v.status === "published" && v.publishedAt)).toBe(true);
-    for (const v of versions) definitionSchema.parse(v.definition);
+    const published = await db
+      .select({ key: schema.categories.key, version: schema.categoryVersions })
+      .from(schema.categories)
+      .innerJoin(schema.categoryVersions, eq(schema.categoryVersions.id, schema.categories.currentPublishedVersionId));
+    expect(published).toHaveLength(SEED_CATEGORIES.length);
+    for (const { key, version } of published) {
+      expect(version.status, key).toBe("published");
+      expect(version.publishedAt, key).not.toBeNull();
+      expect(version.definition, key).toEqual(definitionSchema.parse(SEED_CATEGORIES.find((c) => c.key === key)!.definition));
+    }
     const lens = cats.find((c) => c.key === "contact_lens")!;
     expect(lens.allowedShippingModes).toEqual(["air_sensitive", "sea"]);
-    expect(await db.$count(schema.measurementDefinitions)).toBe(12);
+    expect(await db.$count(schema.measurementDefinitions)).toBe(SEED_MEASUREMENTS.length);
+  });
+
+  it("asks every clothing category for height and weight first, in a new version (0008)", async () => {
+    const lib = await db.select().from(schema.measurementDefinitions).where(inArray(schema.measurementDefinitions.key, [...BODY_MEASUREMENT_KEYS]));
+    expect(lib.map((m) => [m.key, m.unit, m.group]).sort()).toEqual([
+      ["height_cm", "cm", "body"],
+      ["weight_kg", "kg", "body"],
+    ]);
+
+    for (const key of ["clothing_top", "clothing_bottom", "dress"]) {
+      const versions = await db
+        .select({ version: schema.categoryVersions.version, status: schema.categoryVersions.status, definition: schema.categoryVersions.definition })
+        .from(schema.categoryVersions)
+        .innerJoin(schema.categories, eq(schema.categories.id, schema.categoryVersions.categoryId))
+        .where(eq(schema.categories.key, key));
+      const v1 = versions.find((v) => v.version === 1)!;
+      const live = versions.find((v) => v.status === "published")!;
+      expect(v1.status, key).toBe("archived");
+      // Dress: v2 was the test's draft, 0008 published v3, 0009 v5 (the draft moved ahead each time).
+      expect(live.version, key).toBe(key === "dress" ? 5 : 2);
+      const firstKeys = live.definition.sections[0].fields.slice(0, 2).map((f) => (f.kind === "measurement" ? f.measurementKey : f.key));
+      expect(firstKeys, key).toEqual(["height_cm", "weight_kg"]);
+    }
+    // Everything else is untouched.
+    const ring = await db.select().from(schema.categoryVersions).innerJoin(schema.categories, eq(schema.categories.id, schema.categoryVersions.categoryId)).where(eq(schema.categories.key, "ring"));
+    expect(ring.map((r) => r.category_versions.status)).toEqual(["published"]);
+
+    const entries = await db.select().from(schema.auditLog).where(eq(schema.auditLog.action, "category.publish"));
+    expect(entries.filter((e) => /height and weight/.test(e.summary))).toHaveLength(3);
+    expect(entries.every((e) => e.actorId === null)).toBe(true);
+  });
+
+  it("keeps an admin's unpublished draft, adds the fields to it, and numbers it after the new version (0008)", async () => {
+    const [draft] = await db
+      .select({ version: schema.categoryVersions.version, definition: schema.categoryVersions.definition })
+      .from(schema.categoryVersions)
+      .innerJoin(schema.categories, eq(schema.categories.id, schema.categoryVersions.categoryId))
+      .where(and(eq(schema.categories.key, "dress"), eq(schema.categoryVersions.status, "draft")));
+    expect(draft.version).toBe(6);
+    const keys = draft.definition.sections[0].fields.map((f) => (f.kind === "measurement" ? f.measurementKey : f.key));
+    expect(keys.slice(0, 2)).toEqual(["height_cm", "weight_kg"]);
+    expect(keys.at(-1)).toBe("fit_note");
+    expect(keys).not.toContain("length_cm");
+    definitionSchema.parse(draft.definition);
+  });
+
+  it("drops dress length from Dress, and old orders keep their answer (0009)", async () => {
+    const [dress] = await db
+      .select({ definition: schema.categoryVersions.definition })
+      .from(schema.categories)
+      .innerJoin(schema.categoryVersions, eq(schema.categoryVersions.id, schema.categories.currentPublishedVersionId))
+      .where(eq(schema.categories.key, "dress"));
+    const keys = dress.definition.sections.flatMap((s) => s.fields.map((f) => (f.kind === "measurement" ? f.measurementKey : f.key)));
+    expect(keys).toEqual(["height_cm", "weight_kg", "chest_cm", "waist_cm", "hip_cm"]);
+    const [entry] = await db.select().from(schema.auditLog).where(sql`${schema.auditLog.summary} like '%dress length%'`);
+    expect(entry).toMatchObject({ action: "category.publish", actorId: null });
+  });
+
+  it("only allows known units and groups", async () => {
+    const row = { label: "X", min: 1, max: 2, step: 1, sort_order: 0 };
+    const insert = (key: string, unit: string, group: string) =>
+      client.query(`INSERT INTO measurement_definitions (key, label, unit, min, max, step, "group", sort_order) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`, [
+        key, row.label, unit, row.min, row.max, row.step, group, row.sort_order,
+      ]);
+    expect(await fails(insert("x_m", "m", "body"))).toMatch(/measurement_definitions_unit/);
+    expect(await fails(insert("x_cm", "cm", "torso"))).toMatch(/measurement_definitions_group/);
+  });
+
+  it("gives the seeded categories their search words (0007)", async () => {
+    const rows = await db.select({ key: schema.categories.key, aliases: schema.categories.aliases }).from(schema.categories);
+    const aliasesOf = Object.fromEntries(rows.map((r) => [r.key, r.aliases]));
+    expect(aliasesOf.shoes).toEqual(SEED_CATEGORIES.find((c) => c.key === "shoes")!.aliases);
+    expect(aliasesOf.shoes).toContain("kasut");
+    expect(aliasesOf.digital).toEqual([]);
+  });
+
+  it("switches off the digital product category, and says why in the change log (0006)", async () => {
+    const [digital] = await db.select().from(schema.categories).where(eq(schema.categories.key, "digital"));
+    expect(digital.isActive).toBe(false);
+    expect(await db.$count(schema.categories, eq(schema.categories.isActive, false))).toBe(1);
+    const [entry] = await db.select().from(schema.auditLog).where(eq(schema.auditLog.entityId, digital.id));
+    expect(entry).toMatchObject({ action: "category.update", actorId: null, summary: expect.stringMatching(/no longer offered/) });
   });
 
   it("backfills every order with the version it was made under, and every order still validates", async () => {

@@ -1,9 +1,9 @@
 "use client";
 
-import { Camera, Check, Link2, MessageCircleQuestion, Monitor } from "lucide-react";
+import { Camera, Check, Link2, MessageCircleQuestion, ShoppingCart } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, useTransition } from "react";
 import {
   get,
   useForm,
@@ -13,18 +13,22 @@ import {
   type Resolver,
   type UseFormRegister,
 } from "react-hook-form";
+import { CategoryCombobox } from "@/components/category/CategoryCombobox";
+import { loadCategoryDetail, prefetchCategoryDetail, useCategoryDetail, useCategoryList } from "@/components/category/categoryApiClient";
 import { CategoryFields } from "@/components/category/CategoryFields";
 import { FieldError } from "@/components/form/FieldError";
 import { PhotoUploader } from "@/components/order/PhotoUploader";
+import { Price } from "@/components/site/Price";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { findCategory, type Catalog } from "@/domain/catalog";
-import { hasMeasurements, prefillMeasurements, resolveFields, type SavedMeasurements } from "@/domain/categorySchema";
-import type { BatchShippingMode, ConditionPreference, PathType, ShippingMode } from "@/domain/enums";
-import { upfrontFee, coordinationFeeSen, deliveryFeeSen } from "@/domain/fees";
+import type { CategoryDetailResponse } from "@/domain/categoryApi";
+import { hasMeasurements, prefillMeasurements, type SavedMeasurements } from "@/domain/categorySchema";
+import type { BatchShippingMode, ConditionPreference, PathType, ShippingMode, StudentPathType } from "@/domain/enums";
+import { coordinationFeeDisplay, deliveryFeeSen, upfrontFee } from "@/domain/fees";
 import { PLATFORM_LABELS } from "@/domain/labels";
 import { contentPostNotice, routeForLink, validateProductLink } from "@/domain/links";
 import { parseFxRate } from "@/domain/money";
@@ -33,26 +37,24 @@ import type { Settings } from "@/domain/settings";
 import { shippingOptions } from "@/domain/shippingOptions";
 import { fmtDate, fmtDays, formatMyr } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { saveDraftAction } from "../../cart/actions";
 import { submitOrderAction } from "./actions";
 
 export interface OrderFormProps {
   initial: Partial<OrderFormInput>;
   settings: Settings;
-  /** Published categories + measurement library, from the server. */
-  catalog: Catalog;
-  /** Presigned URLs for "how to measure" images, by image key. */
-  helpImageUrls: Record<string, string>;
   nextCutoffs: Partial<Record<BatchShippingMode, string>>;
   savedMeasurements: SavedMeasurements;
   uploadsEnabled: boolean;
   nowMs: number;
   prefillNote: string | null;
+  /** The cart item this form was opened from, if any. */
+  draftId: string | null;
 }
 
-const PATHS: Array<{ value: PathType; title: string; body: string; icon: typeof Link2 }> = [
+const PATHS: Array<{ value: StudentPathType; title: string; body: string; icon: typeof Link2 }> = [
   { value: "url", title: "I have a link", body: "A product page on a supported platform.", icon: Link2 },
   { value: "reverse_search", title: "I have a photo", body: "A screenshot or a RedNote/Douyin post. We find it.", icon: Camera },
-  { value: "digital", title: "A digital product", body: "Software, subscriptions, in-game credits.", icon: Monitor },
   { value: "consultation", title: "I'm not sure", body: "Tell us what you need and your budget.", icon: MessageCircleQuestion },
 ];
 
@@ -82,10 +84,22 @@ function setPath(target: Record<string, unknown>, path: string, value: unknown) 
   node[parts.at(-1)!] = value;
 }
 
-/** React Hook Form resolver backed by the shared domain validator (the server runs the same). */
-function makeResolver(catalog: Catalog): Resolver<OrderFormInput> {
+/** No category form loaded yet. */
+const EMPTY_CATALOG: Catalog = { categories: [], measurements: [] };
+
+/** The chosen category's form (from GET /api/categories/[key]) as a one-category catalogue. */
+function catalogOf(detail: CategoryDetailResponse | null): Catalog {
+  return detail ? { categories: [detail.category], measurements: detail.measurements } : EMPTY_CATALOG;
+}
+
+/**
+ * React Hook Form resolver backed by the shared domain validator (the server
+ * runs the same). It reads the catalogue at validation time, because the
+ * chosen category's form arrives from the API after the first render.
+ */
+function makeResolver(getCatalog: () => Catalog): Resolver<OrderFormInput> {
   return async (values) => {
-    const r = validateOrderInput(values, catalog);
+    const r = validateOrderInput(values, getCatalog());
     if (r.ok) return { values, errors: {} };
     const errors: Record<string, unknown> = {};
     for (const [path, message] of Object.entries(r.fieldErrors)) setPath(errors, path, { type: "validate", message });
@@ -93,19 +107,15 @@ function makeResolver(catalog: Catalog): Resolver<OrderFormInput> {
   };
 }
 
-/** Saved measurements for this category's measurement fields. */
-function prefillFor(catalog: Catalog, key: string | undefined, saved: SavedMeasurements): Record<string, unknown> {
-  const c = findCategory(catalog, key);
-  return c ? prefillMeasurements(c.definition, saved) : {};
-}
-
 export function OrderForm(props: OrderFormProps) {
-  const { settings, catalog, savedMeasurements, uploadsEnabled, nowMs } = props;
-  const resolver = useMemo(() => makeResolver(catalog), [catalog]);
+  const { settings, savedMeasurements, uploadsEnabled, nowMs } = props;
+  const catalogRef = useRef(EMPTY_CATALOG);
+  const resolver = useMemo(() => makeResolver(() => catalogRef.current), []);
   const router = useRouter();
   const [step, setStep] = useState(props.initial.productUrl || props.initial.pathType ? 1 : 0);
   const [formError, setFormError] = useState<string | null>(null);
   const [submitting, startSubmit] = useTransition();
+  const [savingDraft, startSavingDraft] = useTransition();
 
   const form = useForm<OrderFormInput>({
     resolver,
@@ -125,7 +135,8 @@ export function OrderForm(props: OrderFormProps) {
       saveMeasurements: true,
       acceptTerms: false,
       ...props.initial,
-      details: prefillFor(catalog, props.initial.category, savedMeasurements),
+      // A cart item keeps what was typed; saved measurements only fill the gaps.
+      details: props.initial.details ?? {},
       contact: { displayName: "", phone: "", campus: "", ...props.initial.contact },
     },
   });
@@ -143,15 +154,27 @@ export function OrderForm(props: OrderFormProps) {
   const link = useMemo(() => (productUrl?.trim() ? validateProductLink(productUrl) : null), [productUrl]);
   const effectivePath: PathType = link?.ok ? routeForLink(pathType, link).pathType : pathType;
   const platform = link?.ok ? link.platform : "other";
-  const category = useMemo(() => findCategory(catalog, categoryKey), [catalog, categoryKey]);
-  const fields = useMemo(() => {
-    try {
-      return category ? resolveFields(category.definition, catalog.measurements) : [];
-    } catch {
-      return [];
-    }
-  }, [category, catalog.measurements]);
-  const digitalCategories = catalog.categories.filter((c) => c.fulfilment === "digital");
+
+  // Categories come from the API: the list for the search box, then the
+  // chosen category's form (fields, measurement limits, help pictures).
+  const categoryList = useCategoryList();
+  const categoryForm = useCategoryDetail(categoryKey ?? "");
+  const catalog = useMemo(() => catalogOf(categoryForm.data), [categoryForm.data]);
+  useLayoutEffect(() => {
+    catalogRef.current = catalog;
+  }, [catalog]);
+  const category = findCategory(catalog, categoryKey);
+  const fields = categoryForm.data?.fields ?? [];
+  const categoryLoading = Boolean(categoryKey) && categoryForm.status === "loading";
+
+  // A category chosen before the form opened (a showcase card, ?category=): prefill it once it loads.
+  const initialCategory = useRef(props.initial.category ?? "");
+  useEffect(() => {
+    const key = initialCategory.current;
+    initialCategory.current = "";
+    if (key) void prefillMeasurementsFor(key);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- once, on mount
+  }, []);
 
   const options = useMemo(() => {
     if (!category) return [];
@@ -173,33 +196,43 @@ export function OrderForm(props: OrderFormProps) {
   const fastest = options.length > 1 ? Math.min(...options.map((o) => o.etaDaysMax ?? Infinity)) : null;
   const selectedOption = options.find((o) => o.mode === shippingMode);
   const fee = upfrontFee(effectivePath, settings);
-  const isDigital = pathType === "digital";
+  const coordination = coordinationFeeDisplay(settings);
 
-  function choosePath(p: PathType) {
+  function choosePath(p: StudentPathType) {
     setValue("pathType", p, { shouldValidate: false });
-    if (p === "digital") {
-      // One digital category is chosen for you; with several, pick on the Details step.
-      const only = digitalCategories.length === 1 ? digitalCategories[0].key : "";
-      setValue("category", only);
-      setValue("details", prefillFor(catalog, only, savedMeasurements));
-      setValue("shippingMode", "none");
-    } else if (findCategory(catalog, categoryKey)?.fulfilment === "digital") {
-      setValue("category", "");
-      setValue("details", {});
-      setValue("shippingMode", undefined as unknown as ShippingMode);
-    }
     setStep(1);
   }
 
-  function chooseCategory(key: string) {
-    setValue("category", key, { shouldValidate: true });
-    setValue("details", prefillFor(catalog, key, savedMeasurements));
-    if (shippingMode && !options.some((o) => o.mode === shippingMode)) {
-      setValue("shippingMode", undefined as unknown as ShippingMode);
+  /** Fill the measurement fields from the student's profile once the category's form has loaded. */
+  async function prefillMeasurementsFor(key: string) {
+    try {
+      const detail = await loadCategoryDetail(key);
+      // Ignore a slow answer for a category the student has since changed.
+      if (form.getValues("category") === key) {
+        setValue("details", { ...prefillMeasurements(detail.definition, savedMeasurements), ...form.getValues("details") });
+      }
+    } catch {
+      // The details step shows the load error and a retry.
     }
   }
 
+  function chooseCategory(key: string) {
+    if (key === categoryKey) return;
+    // No validation yet: the category's form is still on its way, and checking
+    // against nothing would flag a perfectly good choice. Continue checks it.
+    setValue("category", key);
+    setValue("details", {});
+    form.clearErrors(["category", "details", "variantText"]);
+    const allowed = categoryList.data?.find((c) => c.key === key)?.allowedShippingModes;
+    if (shippingMode && allowed && !allowed.includes(shippingMode)) {
+      setValue("shippingMode", undefined as unknown as ShippingMode);
+    }
+    void prefillMeasurementsFor(key);
+  }
+
   async function goNext() {
+    // The details step can't be checked until the category's form is here.
+    if (step === 2 && categoryLoading) return;
     const values = form.getValues();
     const r = validateOrderInput(values, catalog);
     const stepFields = r.ok ? [] : Object.keys(r.fieldErrors).filter((k) => stepOf(k, effectivePath) === step);
@@ -212,17 +245,34 @@ export function OrderForm(props: OrderFormProps) {
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
+  /** "Add to cart": keep this order as it is to finish or submit later. Nothing is checked yet. */
+  function addToCart() {
+    setFormError(null);
+    startSavingDraft(async () => {
+      const res = await saveDraftAction({ id: props.draftId, values: form.getValues() });
+      if (res.ok) router.push(`/cart?added=${res.id}`);
+      else setFormError(res.error);
+    });
+  }
+
   const onSubmit = form.handleSubmit(
     (values) => {
       setFormError(null);
       startSubmit(async () => {
-        const res = await submitOrderAction(values);
+        const res = await submitOrderAction(values, props.draftId);
         if (res.ok) {
           router.push(`/orders/${res.orderId}?new=1${res.restricted ? "&held=1" : ""}`);
           return;
         }
         if (res.formError) setFormError(res.formError);
         const entries = Object.entries(res.fieldErrors ?? {});
+        // The server checked against a newer version of this category's form than
+        // the one on screen (the admin published meanwhile): load the new one.
+        const known = new Set(fields.map((f) => `details.${f.key}`));
+        if (entries.some(([k]) => k.startsWith("details.") && !known.has(k))) {
+          categoryForm.refresh();
+          setFormError("The form for this category was just updated. Please check the Details step again.");
+        }
         for (const [path, message] of entries) form.setError(path as never, { type: "server", message });
         if (entries.length) setStep(Math.min(...entries.map(([k]) => stepOf(k, effectivePath))));
       });
@@ -319,9 +369,7 @@ export function OrderForm(props: OrderFormProps) {
               ? "The product"
               : pathType === "reverse_search"
                 ? "What you saw"
-                : pathType === "digital"
-                  ? "The digital product"
-                  : "What you need"}
+                : "What you need"}
           </h2>
 
           {pathType === "consultation" ? (
@@ -373,7 +421,7 @@ export function OrderForm(props: OrderFormProps) {
             <Field label={pathType === "consultation" ? "Short title" : "What is it?"} id="itemName" error={err("itemName")}>
               <Input
                 id="itemName"
-                placeholder={pathType === "digital" ? "e.g. Genshin 6480 Genesis Crystals" : "e.g. Canvas sneakers"}
+                placeholder="e.g. Canvas sneakers"
                 className="h-11"
                 aria-invalid={err("itemName") ? true : undefined}
                 {...register("itemName")}
@@ -384,7 +432,7 @@ export function OrderForm(props: OrderFormProps) {
             </Field>
           </div>
 
-          {effectivePath !== "url" && !isDigital ? (
+          {effectivePath !== "url" ? (
             <Field
               label={effectivePath === "reverse_search" ? "Photos or screenshots" : "Photos — optional"}
               id="photos"
@@ -418,21 +466,19 @@ export function OrderForm(props: OrderFormProps) {
             </fieldset>
           ) : null}
 
-          {!isDigital ? (
-            <label className="flex items-start gap-3 text-sm">
-              <Checkbox
-                checked={Boolean(freeShip)}
-                onCheckedChange={(v) => setValue("domesticFreeShipping", v === true)}
-                className="mt-0.5"
-              />
-              <span>
-                The listing says free shipping (包邮)
-                <span className="block text-xs text-muted-foreground">
-                  That only covers delivery inside China. International shipping to Malaysia still applies.
-                </span>
+          <label className="flex items-start gap-3 text-sm">
+            <Checkbox
+              checked={Boolean(freeShip)}
+              onCheckedChange={(v) => setValue("domesticFreeShipping", v === true)}
+              className="mt-0.5"
+            />
+            <span>
+              The listing says free shipping (包邮)
+              <span className="block text-xs text-muted-foreground">
+                That only covers delivery inside China. International shipping to Malaysia still applies.
               </span>
-            </label>
-          ) : null}
+            </span>
+          </label>
         </section>
       ) : null}
 
@@ -440,27 +486,39 @@ export function OrderForm(props: OrderFormProps) {
       {step === 2 ? (
         <section className="space-y-6">
           <h2 className="display text-3xl">Details</h2>
-          {!isDigital || digitalCategories.length > 1 ? (
-            <Field label="Category" id="category" error={err("category")}>
-              <select
-                id="category"
-                value={categoryKey}
-                onChange={(e) => chooseCategory(e.target.value)}
-                aria-invalid={err("category") ? true : undefined}
-                className="h-11 w-full rounded-lg border border-input bg-transparent px-3 text-base aria-invalid:border-destructive"
-              >
-                <option value="" disabled>
-                  Choose a category…
-                </option>
-                {catalog.categories
-                  .filter((c) => (c.fulfilment === "digital") === isDigital)
-                  .map((c) => (
-                    <option key={c.key} value={c.key}>
-                      {c.name}
-                    </option>
-                  ))}
-              </select>
-            </Field>
+          <Field label="Category" id="category" error={err("category")}>
+            <CategoryCombobox
+              id="category"
+              value={categoryKey ?? ""}
+              onChange={chooseCategory}
+              categories={categoryList.data}
+              loading={categoryList.status === "loading"}
+              error={categoryList.error}
+              onRetry={categoryList.retry}
+              invalid={Boolean(err("category"))}
+              fallbackKey="other"
+              onHighlight={prefetchCategoryDetail}
+            />
+          </Field>
+
+          {categoryLoading ? (
+            <div aria-busy className="space-y-4" aria-label="Loading the category's details">
+              {[0, 1, 2].map((i) => (
+                <div key={i} className="space-y-2">
+                  <div className="h-4 w-32 animate-pulse rounded bg-white/10" />
+                  <div className="h-11 animate-pulse rounded-lg bg-white/5" />
+                </div>
+              ))}
+            </div>
+          ) : null}
+
+          {categoryKey && categoryForm.status === "error" ? (
+            <p className="flex flex-wrap items-center gap-3 rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
+              {categoryForm.error}
+              <button type="button" onClick={categoryForm.retry} className="text-foreground underline underline-offset-2">
+                Try again
+              </button>
+            </p>
           ) : null}
 
           {category ? (
@@ -481,7 +539,7 @@ export function OrderForm(props: OrderFormProps) {
                 register={reg}
                 errors={errors}
                 values={(details ?? {}) as Record<string, unknown>}
-                helpImageUrls={props.helpImageUrls}
+                helpImageUrls={categoryForm.data?.helpImages ?? {}}
               />
               <Field
                 label={
@@ -524,65 +582,59 @@ export function OrderForm(props: OrderFormProps) {
       {step === 3 ? (
         <section className="space-y-6">
           <h2 className="display text-3xl">Delivery</h2>
-          {isDigital ? (
-            <p className="text-muted-foreground">Digital products are delivered to the email you gave. No shipping.</p>
-          ) : (
-            <>
-              <fieldset className="space-y-3">
-                <legend className="mb-2 text-sm font-medium">Shipping to Malaysia</legend>
-                {options.map((o) => (
-                  <label
-                    key={o.mode}
-                    className="flex cursor-pointer gap-3 rounded-2xl border border-white/15 p-4 has-checked:border-white has-checked:bg-white/5"
-                  >
-                    <input type="radio" value={o.mode} className="mt-1 accent-white" {...register("shippingMode")} />
-                    <span className="flex-1">
-                      <span className="flex flex-wrap items-center gap-2 font-medium">
-                        {o.label}
-                        {o.maxSen === cheapest ? <Tag>Cheapest</Tag> : null}
-                        {o.etaDaysMax !== null && o.etaDaysMax === fastest ? <Tag>Fastest</Tag> : null}
-                      </span>
-                      <span className="mt-1 block text-sm">
-                        {o.mode === "pdd_direct"
-                          ? "No forwarder shipping"
-                          : `Est. ${formatMyr(o.minSen)} – ${formatMyr(o.maxSen)}`}
-                        {fmtDays(o.etaDaysMin, o.etaDaysMax) ? ` · ${fmtDays(o.etaDaysMin, o.etaDaysMax)} to campus` : ""}
-                      </span>
-                      {o.cutoffAt ? (
-                        <span className="block text-xs text-muted-foreground">Next cutoff {fmtDate(o.cutoffAt)}</span>
-                      ) : null}
-                      {o.note ? <span className="block text-xs text-muted-foreground">{o.note}</span> : null}
-                    </span>
-                  </label>
-                ))}
-                <FieldError message={err("shippingMode")} />
-                <p className="text-xs text-muted-foreground">
-                  Estimates use typical weights for this category until we confirm with the seller. You pay the top of
-                  the range; after the warehouse weigh-in, anything less is credited to your HaloHaul balance.
-                </p>
-              </fieldset>
+          <fieldset className="space-y-3">
+            <legend className="mb-2 text-sm font-medium">Shipping to Malaysia</legend>
+            {options.map((o) => (
+              <label
+                key={o.mode}
+                className="flex cursor-pointer gap-3 rounded-2xl border border-white/15 p-4 has-checked:border-white has-checked:bg-white/5"
+              >
+                <input type="radio" value={o.mode} className="mt-1 accent-white" {...register("shippingMode")} />
+                <span className="flex-1">
+                  <span className="flex flex-wrap items-center gap-2 font-medium">
+                    {o.label}
+                    {o.maxSen === cheapest ? <Tag>Cheapest</Tag> : null}
+                    {o.etaDaysMax !== null && o.etaDaysMax === fastest ? <Tag>Fastest</Tag> : null}
+                  </span>
+                  <span className="mt-1 block text-sm">
+                    {o.mode === "pdd_direct"
+                      ? "No forwarder shipping"
+                      : `Est. ${formatMyr(o.minSen)} – ${formatMyr(o.maxSen)}`}
+                    {fmtDays(o.etaDaysMin, o.etaDaysMax) ? ` · ${fmtDays(o.etaDaysMin, o.etaDaysMax)} to campus` : ""}
+                  </span>
+                  {o.cutoffAt ? (
+                    <span className="block text-xs text-muted-foreground">Next cutoff {fmtDate(o.cutoffAt)}</span>
+                  ) : null}
+                  {o.note ? <span className="block text-xs text-muted-foreground">{o.note}</span> : null}
+                </span>
+              </label>
+            ))}
+            <FieldError message={err("shippingMode")} />
+            <p className="text-xs text-muted-foreground">
+              Estimates use typical weights for this category until we confirm with the seller. You pay the top of
+              the range; after the warehouse weigh-in, anything less is credited to your HaloHaul balance.
+            </p>
+          </fieldset>
 
-              <fieldset className="space-y-3">
-                <legend className="mb-2 text-sm font-medium">Hand-over</legend>
-                {(["campus_pickup", "lalamove"] as const).map((m) => (
-                  <label
-                    key={m}
-                    className="flex cursor-pointer gap-3 rounded-2xl border border-white/15 p-4 has-checked:border-white has-checked:bg-white/5"
-                  >
-                    <input type="radio" value={m} className="mt-1 accent-white" {...register("fulfilment")} />
-                    <span>
-                      <span className="block font-medium">
-                        {m === "campus_pickup" ? settings.pickup.pointName : `Lalamove delivery (+${formatMyr(deliveryFeeSen("lalamove", settings))})`}
-                      </span>
-                      <span className="block text-sm text-muted-foreground">
-                        {m === "campus_pickup" ? settings.pickup.windowText : "Delivered to you once your batch arrives."}
-                      </span>
-                    </span>
-                  </label>
-                ))}
-              </fieldset>
-            </>
-          )}
+          <fieldset className="space-y-3">
+            <legend className="mb-2 text-sm font-medium">Hand-over</legend>
+            {(["campus_pickup", "lalamove"] as const).map((m) => (
+              <label
+                key={m}
+                className="flex cursor-pointer gap-3 rounded-2xl border border-white/15 p-4 has-checked:border-white has-checked:bg-white/5"
+              >
+                <input type="radio" value={m} className="mt-1 accent-white" {...register("fulfilment")} />
+                <span>
+                  <span className="block font-medium">
+                    {m === "campus_pickup" ? settings.pickup.pointName : `Lalamove delivery (+${formatMyr(deliveryFeeSen("lalamove", settings))})`}
+                  </span>
+                  <span className="block text-sm text-muted-foreground">
+                    {m === "campus_pickup" ? settings.pickup.windowText : "Delivered to you once your batch arrives."}
+                  </span>
+                </span>
+              </label>
+            ))}
+          </fieldset>
         </section>
       ) : null}
 
@@ -605,7 +657,7 @@ export function OrderForm(props: OrderFormProps) {
                 Item price at cost, shown in RMB and ringgit on your quote.
               </li>
               <li>
-                <strong className="text-foreground">{formatMyr(coordinationFeeSen(settings))}</strong> coordination fee
+                <strong className="text-foreground"><Price sen={coordination.sen} wasSen={coordination.wasSen} /></strong> coordination fee
                 for this order.
               </li>
               {selectedOption && selectedOption.maxSen > 0 ? (
@@ -616,7 +668,7 @@ export function OrderForm(props: OrderFormProps) {
                 </li>
               ) : null}
               {shippingMode === "pdd_direct" ? <li>Delivery time set by PDD.</li> : null}
-              {fulfilment === "lalamove" && !isDigital ? (
+              {fulfilment === "lalamove" ? (
                 <li>
                   <strong className="text-foreground">{formatMyr(deliveryFeeSen("lalamove", settings))}</strong> Lalamove delivery.
                 </li>
@@ -660,7 +712,11 @@ export function OrderForm(props: OrderFormProps) {
               <span>
                 I&apos;ve read the{" "}
                 <Link href="/terms" target="_blank" className="underline">
-                  terms and privacy notice
+                  Terms &amp; Conditions
+                </Link>{" "}
+                and{" "}
+                <Link href="/privacy" target="_blank" className="underline">
+                  Privacy Policy
                 </Link>
                 : free cancellation until we buy the item, shipping is an estimate until the weigh-in, and restricted
                 items may be refused.
@@ -684,9 +740,22 @@ export function OrderForm(props: OrderFormProps) {
           <Button type="button" variant="outline" size="lg" className="h-12 flex-1" onClick={() => setStep((s) => s - 1)}>
             Back
           </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="lg"
+            className="h-12 w-12 shrink-0 px-0 sm:w-auto sm:px-4"
+            onClick={addToCart}
+            disabled={savingDraft || submitting}
+            aria-label={props.draftId ? "Save to cart" : "Add to cart"}
+            title="Save this order to finish or submit later"
+          >
+            <ShoppingCart className="size-5" aria-hidden />
+            <span className="hidden sm:inline">{savingDraft ? "Saving…" : props.draftId ? "Save to cart" : "Add to cart"}</span>
+          </Button>
           {step < STEPS.length - 1 ? (
-            <Button type="button" size="lg" className="h-12 flex-2" onClick={goNext}>
-              Continue
+            <Button type="button" size="lg" className="h-12 flex-2" onClick={goNext} disabled={step === 2 && categoryLoading}>
+              {step === 2 && categoryLoading ? "Loading the form…" : "Continue"}
             </Button>
           ) : (
             <Button type="submit" size="lg" className="h-12 flex-2" disabled={submitting}>

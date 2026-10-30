@@ -35,10 +35,14 @@ export function rateLimit(key: string, limit: number, windowMs: number, now = Da
 }
 
 export const LIMITS = {
-  orderSubmit: { limit: 5, windowMs: 10 * 60_000 },
+  // Room for a full cart (MAX_SUBMIT_AT_ONCE) in one go.
+  orderSubmit: { limit: 10, windowMs: 10 * 60_000 },
+  draftSave: { limit: 60, windowMs: 60_000 },
   uploadPresign: { limit: 30, windowMs: 10 * 60_000 },
   uploadFinalize: { limit: 30, windowMs: 10 * 60_000 },
   profileUpdate: { limit: 20, windowMs: 10 * 60_000 },
+  /** Public read APIs (categories, help pictures), per client IP. */
+  publicApi: { limit: 240, windowMs: 60_000 },
 } as const;
 
 /** Test helper. */

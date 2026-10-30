@@ -5,6 +5,9 @@ export const USER_ROLES = ["student", "admin"] as const;
 export type UserRole = (typeof USER_ROLES)[number];
 
 export const PATH_TYPES = ["url", "reverse_search", "consultation", "digital"] as const;
+/** How a student can start a new order. "digital" above is kept only for orders already placed. */
+export const STUDENT_PATH_TYPES = ["url", "reverse_search", "consultation"] as const;
+export type StudentPathType = (typeof STUDENT_PATH_TYPES)[number];
 export type PathType = (typeof PATH_TYPES)[number];
 
 export const PLATFORMS = [
@@ -107,10 +110,12 @@ export type PaymentPurpose = (typeof PAYMENT_PURPOSES)[number];
 
 // ---- categories (database-driven) -------------------------------------------
 
-export const MEASUREMENT_UNITS = ["cm", "mm"] as const;
+/** Stored as text with a CHECK constraint (not a Postgres enum), so adding a unit needs no type change. */
+export const MEASUREMENT_UNITS = ["cm", "mm", "kg"] as const;
 export type MeasurementUnit = (typeof MEASUREMENT_UNITS)[number];
 
-export const MEASUREMENT_GROUPS = ["upper_body", "lower_body", "feet", "hands", "other"] as const;
+/** Display order of the groups is MEASUREMENT_GROUP_LABELS's order. Also text + CHECK in the database. */
+export const MEASUREMENT_GROUPS = ["body", "upper_body", "lower_body", "feet", "hands", "other"] as const;
 export type MeasurementGroup = (typeof MEASUREMENT_GROUPS)[number];
 
 export const CATEGORY_FULFILMENTS = ["physical", "digital"] as const;

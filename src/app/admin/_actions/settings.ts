@@ -68,6 +68,7 @@ const infoSchema = z.object({
   defaultHeightMm: mm,
   allowedShippingModes: z.array(z.enum(SHIPPING_MODES)).max(5),
   restrictedNote: z.string().trim().max(300).nullable(),
+  aliases: z.array(z.string().max(200)).max(200).default([]),
   isActive: z.boolean(),
 });
 

@@ -22,6 +22,8 @@ export interface SeedMeasurement {
 }
 
 export const SEED_MEASUREMENTS: SeedMeasurement[] = [
+  { key: "height_cm", label: "Height", unit: "cm", min: 100, max: 230, step: 0.5, group: "body", sortOrder: 10, helpText: "Standing straight, without shoes." },
+  { key: "weight_kg", label: "Weight", unit: "kg", min: 25, max: 200, step: 0.1, group: "body", sortOrder: 20, helpText: "Your body weight. Sellers' size charts use it with your height." },
   { key: "chest_cm", label: "Chest", unit: "cm", min: 50, max: 200, step: 0.5, group: "upper_body", sortOrder: 10, helpText: "Measure around the fullest part of your chest." },
   { key: "shoulder_cm", label: "Shoulder width", unit: "cm", min: 25, max: 80, step: 0.5, group: "upper_body", sortOrder: 20 },
   { key: "arm_length_cm", label: "Arm length", unit: "cm", min: 30, max: 100, step: 0.5, group: "upper_body", sortOrder: 30, helpText: "Shoulder point to wrist." },
@@ -40,6 +42,8 @@ export interface SeedCategory {
   key: string;
   name: string;
   icon: string;
+  /** Other words students search for it by. */
+  aliases?: string[];
   sortOrder: number;
   fulfilment: CategoryFulfilment;
   /** Per-item default parcel: grams and millimetres. */
@@ -86,6 +90,7 @@ export const SEED_CATEGORIES: SeedCategory[] = [
   {
     key: "clothing_top",
     name: "Clothing — top",
+    aliases: ["shirt", "t-shirt", "tee", "blouse", "hoodie", "sweater", "jacket", "cardigan", "baju", "kemeja", "上衣", "T恤", "卫衣"],
     icon: "Shirt",
     sortOrder: 10,
     fulfilment: "physical",
@@ -95,12 +100,13 @@ export const SEED_CATEGORIES: SeedCategory[] = [
     defaultHeightMm: 50,
     allowedShippingModes: PHYSICAL,
     definition: {
-      sections: [{ title: "Your measurements", fields: [m("chest_cm"), m("shoulder_cm"), m("arm_length_cm"), m("body_length_cm")] }],
+      sections: [{ title: "Your measurements", fields: [m("height_cm"), m("weight_kg"), m("chest_cm"), m("shoulder_cm"), m("arm_length_cm"), m("body_length_cm")] }],
     },
   },
   {
     key: "clothing_bottom",
     name: "Clothing — bottom",
+    aliases: ["pants", "trousers", "jeans", "skirt", "shorts", "leggings", "seluar", "kain", "裤子", "半身裙"],
     icon: "Ruler",
     sortOrder: 20,
     fulfilment: "physical",
@@ -109,11 +115,12 @@ export const SEED_CATEGORIES: SeedCategory[] = [
     defaultWidthMm: 250,
     defaultHeightMm: 60,
     allowedShippingModes: PHYSICAL,
-    definition: { sections: [{ title: "Your measurements", fields: [m("waist_cm"), m("hip_cm"), m("inseam_cm")] }] },
+    definition: { sections: [{ title: "Your measurements", fields: [m("height_cm"), m("weight_kg"), m("waist_cm"), m("hip_cm"), m("inseam_cm")] }] },
   },
   {
     key: "dress",
     name: "Dress",
+    aliases: ["gown", "jubah", "abaya", "baju kurung", "maxi", "连衣裙", "裙子"],
     icon: "Sparkle",
     sortOrder: 30,
     fulfilment: "physical",
@@ -127,10 +134,11 @@ export const SEED_CATEGORIES: SeedCategory[] = [
         {
           title: "Your measurements",
           fields: [
+            m("height_cm"),
+            m("weight_kg"),
             m("chest_cm"),
             m("waist_cm"),
             m("hip_cm"),
-            { kind: "number", key: "length_cm", label: "Dress length", unit: "cm", min: 50, max: 180, step: 0.5, required: true, helpText: "Preferred length, shoulder to hem." },
           ],
         },
       ],
@@ -139,6 +147,7 @@ export const SEED_CATEGORIES: SeedCategory[] = [
   {
     key: "bra",
     name: "Bra",
+    aliases: ["bralette", "lingerie", "underwear", "coli", "baju dalam", "内衣", "文胸"],
     icon: "Heart",
     sortOrder: 40,
     fulfilment: "physical",
@@ -152,6 +161,7 @@ export const SEED_CATEGORIES: SeedCategory[] = [
   {
     key: "shoes",
     name: "Shoes",
+    aliases: ["sneakers", "trainers", "heels", "boots", "sandals", "slippers", "kasut", "selipar", "鞋", "运动鞋"],
     icon: "Footprints",
     sortOrder: 50,
     fulfilment: "physical",
@@ -176,6 +186,7 @@ export const SEED_CATEGORIES: SeedCategory[] = [
   {
     key: "ring",
     name: "Ring",
+    aliases: ["jewellery", "jewelry", "cincin", "戒指"],
     icon: "Gem",
     sortOrder: 60,
     fulfilment: "physical",
@@ -189,6 +200,7 @@ export const SEED_CATEGORIES: SeedCategory[] = [
   {
     key: "glasses_prescription",
     name: "Prescription glasses",
+    aliases: ["spectacles", "eyeglasses", "specs", "frames", "cermin mata", "spek", "眼镜"],
     icon: "Glasses",
     sortOrder: 70,
     fulfilment: "physical",
@@ -217,6 +229,7 @@ export const SEED_CATEGORIES: SeedCategory[] = [
   {
     key: "contact_lens",
     name: "Contact lenses",
+    aliases: ["contacts", "softlens", "soft lens", "colour lens", "circle lens", "kanta lekap", "美瞳", "隐形眼镜"],
     icon: "Eye",
     sortOrder: 80,
     fulfilment: "physical",
@@ -243,6 +256,7 @@ export const SEED_CATEGORIES: SeedCategory[] = [
   {
     key: "cosmetics",
     name: "Cosmetics",
+    aliases: ["makeup", "make-up", "skincare", "lipstick", "eyeshadow", "foundation", "solekan", "化妆品", "口红"],
     icon: "Palette",
     sortOrder: 90,
     fulfilment: "physical",
@@ -256,6 +270,7 @@ export const SEED_CATEGORIES: SeedCategory[] = [
   {
     key: "electronics",
     name: "Electronics",
+    aliases: ["gadget", "earphones", "headphones", "earbuds", "charger", "keyboard", "mouse", "elektronik", "耳机", "数码"],
     icon: "Smartphone",
     sortOrder: 100,
     fulfilment: "physical",
@@ -303,6 +318,7 @@ export const SEED_CATEGORIES: SeedCategory[] = [
   {
     key: "other",
     name: "Something else",
+    aliases: ["misc", "anything", "lain-lain", "其他"],
     icon: "Package",
     sortOrder: 120,
     fulfilment: "physical",
@@ -324,6 +340,9 @@ export const SEED_CATEGORIES: SeedCategory[] = [
   },
 ];
 
+/** Measurements every clothing category asks for first (migration 0008 added them). */
+export const BODY_MEASUREMENT_KEYS = ["height_cm", "weight_kg"] as const;
+
 /** Old field keys renamed in v1 (applied to existing orders by the migration). */
 export const RENAMED_DETAIL_KEYS: Record<string, Record<string, string>> = {
   ring: { inner_circumference_mm: "ring_inner_circumference_mm" },
@@ -344,6 +363,7 @@ export function seedCatalog(): Catalog {
       key: c.key,
       name: c.name,
       icon: c.icon,
+      aliases: c.aliases ?? [],
       fulfilment: c.fulfilment,
       defaultParcel: { weightG: c.defaultWeightG, lengthMm: c.defaultLengthMm, widthMm: c.defaultWidthMm, heightMm: c.defaultHeightMm },
       allowedShippingModes: c.allowedShippingModes,

@@ -4,6 +4,7 @@ import { useId, useState } from "react";
 import { CategoryIcon } from "@/components/admin/CategoryIcon";
 import { Field } from "@/components/admin/ui";
 import { CATEGORY_ICONS } from "@/domain/categoryIcons";
+import { MAX_ALIASES, parseAliases } from "@/domain/categorySearch";
 import type { CategoryFulfilment, ShippingMode } from "@/domain/enums";
 import { SHIPPING_MODE_LABELS } from "@/domain/labels";
 import { cn } from "@/lib/utils";
@@ -19,6 +20,8 @@ export interface CategoryInfoValues {
   defaultHeightMm: number;
   allowedShippingModes: ShippingMode[];
   restrictedNote: string | null;
+  /** Other words students search for it by. */
+  aliases: string[];
   isActive: boolean;
 }
 
@@ -35,10 +38,11 @@ export const blankCategory: CategoryInfoValues = {
   defaultHeightMm: 100,
   allowedShippingModes: PHYSICAL_MODES,
   restrictedNote: null,
+  aliases: [],
   isActive: true,
 };
 
-/** Basic info for a category: name, icon, fulfilment, default parcel, shipping modes, restricted note. */
+/** Basic info for a category: name, icon, default parcel, shipping modes, restricted note. */
 export function CategoryInfoForm({
   value,
   onChange,
@@ -52,6 +56,8 @@ export function CategoryInfoForm({
 }) {
   const id = useId();
   const set = <K extends keyof CategoryInfoValues>(k: K, v: CategoryInfoValues[K]) => onChange({ ...value, [k]: v });
+  // Typed freely; saved as the cleaned list.
+  const [aliasText, setAliasText] = useState(value.aliases.join(", "));
   // Sizes are edited in kg / cm and stored in g / mm.
   const [sizes, setSizes] = useState({
     w: String(value.defaultWeightG / 1000),
@@ -64,7 +70,6 @@ export function CategoryInfoForm({
     const n = Number(v);
     if (Number.isFinite(n) && n >= 0) set(field, Math.round(n * factor) as never);
   };
-  const digital = value.fulfilment === "digital";
 
   return (
     <div className="space-y-5">
@@ -76,6 +81,24 @@ export function CategoryInfoForm({
           <input id={`${id}-k`} value={value.key} disabled={!isNew} onChange={(e) => set("key", e.target.value)} className="admin-input font-mono" />
         </Field>
       </div>
+
+      <Field
+        label="Search words — optional"
+        htmlFor={`${id}-aliases`}
+        hint={`Other names students might type, in any language, separated by commas: sneakers, kasut, 鞋. Up to ${MAX_ALIASES}.`}
+        error={fieldErrors.aliases}
+      >
+        <textarea
+          id={`${id}-aliases`}
+          rows={2}
+          value={aliasText}
+          onChange={(e) => {
+            setAliasText(e.target.value);
+            set("aliases", parseAliases(e.target.value));
+          }}
+          className="admin-input"
+        />
+      </Field>
 
       <fieldset>
         <legend className="mb-2 text-sm font-medium text-white/85">Icon</legend>
@@ -98,58 +121,43 @@ export function CategoryInfoForm({
       </fieldset>
 
       <fieldset>
-        <legend className="mb-2 text-sm font-medium text-white/85">Fulfilment</legend>
-        <div className="flex gap-2">
-          {(["physical", "digital"] as const).map((f) => (
-            <button key={f} type="button" aria-pressed={value.fulfilment === f} onClick={() => onChange({ ...value, fulfilment: f, allowedShippingModes: f === "digital" ? ["none"] : PHYSICAL_MODES })} className="admin-chip">
-              {f === "physical" ? "Physical (ships)" : "Digital (emailed)"}
-            </button>
-          ))}
+        <legend className="mb-2 text-sm font-medium text-white/85">Default size per item (used for estimates)</legend>
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <Field label="Weight (kg)" htmlFor={`${id}-w`}>
+            <input id={`${id}-w`} inputMode="decimal" value={sizes.w} onChange={(e) => setSize("w", e.target.value, "defaultWeightG", 1000)} className="admin-input" />
+          </Field>
+          <Field label="Length (cm)" htmlFor={`${id}-l`}>
+            <input id={`${id}-l`} inputMode="decimal" value={sizes.l} onChange={(e) => setSize("l", e.target.value, "defaultLengthMm", 10)} className="admin-input" />
+          </Field>
+          <Field label="Width (cm)" htmlFor={`${id}-wd`}>
+            <input id={`${id}-wd`} inputMode="decimal" value={sizes.wd} onChange={(e) => setSize("wd", e.target.value, "defaultWidthMm", 10)} className="admin-input" />
+          </Field>
+          <Field label="Height (cm)" htmlFor={`${id}-h`}>
+            <input id={`${id}-h`} inputMode="decimal" value={sizes.h} onChange={(e) => setSize("h", e.target.value, "defaultHeightMm", 10)} className="admin-input" />
+          </Field>
         </div>
       </fieldset>
-
-      {!digital ? (
-        <>
-          <fieldset>
-            <legend className="mb-2 text-sm font-medium text-white/85">Default size per item (used for estimates)</legend>
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-              <Field label="Weight (kg)" htmlFor={`${id}-w`}>
-                <input id={`${id}-w`} inputMode="decimal" value={sizes.w} onChange={(e) => setSize("w", e.target.value, "defaultWeightG", 1000)} className="admin-input" />
-              </Field>
-              <Field label="Length (cm)" htmlFor={`${id}-l`}>
-                <input id={`${id}-l`} inputMode="decimal" value={sizes.l} onChange={(e) => setSize("l", e.target.value, "defaultLengthMm", 10)} className="admin-input" />
-              </Field>
-              <Field label="Width (cm)" htmlFor={`${id}-wd`}>
-                <input id={`${id}-wd`} inputMode="decimal" value={sizes.wd} onChange={(e) => setSize("wd", e.target.value, "defaultWidthMm", 10)} className="admin-input" />
-              </Field>
-              <Field label="Height (cm)" htmlFor={`${id}-h`}>
-                <input id={`${id}-h`} inputMode="decimal" value={sizes.h} onChange={(e) => setSize("h", e.target.value, "defaultHeightMm", 10)} className="admin-input" />
-              </Field>
-            </div>
-          </fieldset>
-          <fieldset>
-            <legend className="mb-2 text-sm font-medium text-white/85">Shipping modes students can choose</legend>
-            <div className="flex flex-wrap gap-2">
-              {PHYSICAL_MODES.map((m) => (
-                <label key={m} className="flex min-h-11 cursor-pointer items-center gap-2 rounded-xl border border-white/15 px-3 text-sm has-checked:border-white has-checked:bg-white/10">
-                  <input
-                    type="checkbox"
-                    checked={value.allowedShippingModes.includes(m)}
-                    onChange={(e) => set("allowedShippingModes", e.target.checked ? [...value.allowedShippingModes, m] : value.allowedShippingModes.filter((x) => x !== m))}
-                    className="accent-sky-500"
-                  />
-                  {SHIPPING_MODE_LABELS[m]}
-                </label>
-              ))}
-            </div>
-            {fieldErrors.allowedShippingModes ? <p className="mt-1 text-xs text-destructive">{fieldErrors.allowedShippingModes}</p> : null}
-            <p className="mt-1 text-xs text-white/45">PDD direct-ship only shows for PDD links.</p>
-          </fieldset>
-          <Field label="Shipping note shown to students — optional" htmlFor={`${id}-r`} hint="e.g. why only some modes are allowed.">
-            <input id={`${id}-r`} value={value.restrictedNote ?? ""} onChange={(e) => set("restrictedNote", e.target.value || null)} className="admin-input" />
-          </Field>
-        </>
-      ) : null}
+      <fieldset>
+        <legend className="mb-2 text-sm font-medium text-white/85">Shipping modes students can choose</legend>
+        <div className="flex flex-wrap gap-2">
+          {PHYSICAL_MODES.map((m) => (
+            <label key={m} className="flex min-h-11 cursor-pointer items-center gap-2 rounded-xl border border-white/15 px-3 text-sm has-checked:border-white has-checked:bg-white/10">
+              <input
+                type="checkbox"
+                checked={value.allowedShippingModes.includes(m)}
+                onChange={(e) => set("allowedShippingModes", e.target.checked ? [...value.allowedShippingModes, m] : value.allowedShippingModes.filter((x) => x !== m))}
+                className="accent-sky-500"
+              />
+              {SHIPPING_MODE_LABELS[m]}
+            </label>
+          ))}
+        </div>
+        {fieldErrors.allowedShippingModes ? <p className="mt-1 text-xs text-destructive">{fieldErrors.allowedShippingModes}</p> : null}
+        <p className="mt-1 text-xs text-white/45">PDD direct-ship only shows for PDD links.</p>
+      </fieldset>
+      <Field label="Shipping note shown to students — optional" htmlFor={`${id}-r`} hint="e.g. why only some modes are allowed.">
+        <input id={`${id}-r`} value={value.restrictedNote ?? ""} onChange={(e) => set("restrictedNote", e.target.value || null)} className="admin-input" />
+      </Field>
 
       <label className="flex min-h-11 cursor-pointer items-center gap-3 text-sm">
         <input type="checkbox" checked={value.isActive} onChange={(e) => set("isActive", e.target.checked)} className="size-5 accent-sky-500" />

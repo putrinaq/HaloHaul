@@ -3,7 +3,7 @@ import { Geist, Instrument_Serif } from "next/font/google";
 import { Cursor } from "@/components/motion/Cursor";
 import { Scrollbar } from "@/components/motion/Scrollbar";
 import { SmoothScroll } from "@/components/motion/SmoothScroll";
-import { MobileTabBar } from "@/components/site/MobileTabBar";
+import { MobileTabBarForUser } from "@/components/site/MobileTabBarForUser";
 import { cn } from "@/lib/utils";
 import { Suspense } from "react";
 import "locomotive-scroll/locomotive-scroll.css";
@@ -42,7 +42,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         <SmoothScroll />
         {children}
         <Suspense fallback={null}>
-          <MobileTabBar />
+          <MobileTabBarForUser />
         </Suspense>
         <Scrollbar />
         <Cursor />

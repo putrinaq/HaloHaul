@@ -30,6 +30,15 @@ export function coordinationFeeSen(settings: Settings): Sen {
   return settings.fees.coordinationFeeSen;
 }
 
+/**
+ * The coordination fee as students see it: what's charged, plus the regular
+ * price to cross out while a promotion runs (null when there isn't one).
+ */
+export function coordinationFeeDisplay(settings: Settings): { sen: Sen; wasSen: Sen | null; label: string } {
+  const { coordinationFeeSen: sen, coordinationFeeRegularSen: was, coordinationFeePromoLabel: label } = settings.fees;
+  return was !== null && was > sen ? { sen, wasSen: was, label } : { sen, wasSen: null, label: "" };
+}
+
 /** Lalamove is +RM3 per person; campus pickup is free. */
 export function deliveryFeeSen(method: FulfilmentMethod, settings: Settings): Sen {
   return method === "lalamove" ? settings.fees.lalamoveFeeSen : 0;

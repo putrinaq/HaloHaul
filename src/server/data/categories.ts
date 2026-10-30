@@ -20,6 +20,7 @@ export function toCategoryInfo(c: CategoryRow): CategoryInfo {
     key: c.key,
     name: c.name,
     icon: c.icon,
+    aliases: c.aliases,
     fulfilment: c.fulfilment,
     defaultParcel: {
       weightG: c.defaultWeightG,

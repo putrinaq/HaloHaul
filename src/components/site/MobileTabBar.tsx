@@ -1,6 +1,6 @@
 "use client";
 
-import { CircleUserRound, House, Package, Plus, Ship } from "lucide-react";
+import { CircleUserRound, House, LayoutDashboard, Package, Plus, Ship } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -14,6 +14,9 @@ const TABS = [
   { href: "/account", label: "Account", icon: CircleUserRound, match: (p: string) => p.startsWith("/account") },
 ] as const;
 
+/** Admins run the shop rather than order from it: their Orders tab goes to the admin. */
+const ADMIN_TAB = { href: "/admin", label: "Admin", icon: LayoutDashboard, match: () => false } as const;
+
 /** Focused flows get the whole screen (the order form has its own sticky actions); the admin has its own bar. */
 const HIDDEN_ON = ["/order/new", "/sign-in", "/admin"];
 
@@ -24,7 +27,7 @@ const HIDDEN_ON = ["/order/new", "/sign-in", "/admin"];
  * never covers the footer. Rendered inside <Suspense> in the root layout,
  * because reading the pathname would otherwise block prerendering.
  */
-export function MobileTabBar() {
+export function MobileTabBar({ admin = false }: { admin?: boolean }) {
   const pathname = usePathname();
   const keyboardOpen = useKeyboardOpen();
   if (HIDDEN_ON.some((p) => pathname.startsWith(p))) return null;
@@ -41,7 +44,7 @@ export function MobileTabBar() {
         )}
       >
         <ul className="mx-auto flex h-16 max-w-md items-stretch rounded-2xl border border-white/12 bg-neutral-950/90 px-1 shadow-[0_12px_40px_-12px_rgb(0_0_0/0.9),inset_0_1px_0_rgb(255_255_255/0.06)] backdrop-blur-xl">
-          {TABS.map((tab) => {
+          {TABS.map((t) => (admin && t.href === "/orders" ? ADMIN_TAB : t)).map((tab) => {
             const Icon = tab.icon;
             const active = tab.match(pathname);
             if ("primary" in tab) {

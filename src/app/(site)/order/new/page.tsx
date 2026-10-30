@@ -3,12 +3,13 @@ import { redirect } from "next/navigation";
 import { Suspense } from "react";
 import { getDb } from "@/db/client";
 import { findCategory } from "@/domain/catalog";
-import { isBatchShippingMode, PATH_TYPES, type PathType } from "@/domain/enums";
+import { orderableCategories } from "@/domain/categoryApi";
+import { isBatchShippingMode, STUDENT_PATH_TYPES, type StudentPathType } from "@/domain/enums";
 import type { OrderFormInput } from "@/domain/orderInput";
 import { getNextCutoffs, getPublishedShowcaseById, getSettings } from "@/server/data/catalog";
 import { getCatalog } from "@/server/data/categories";
-import { helpImageUrls } from "@/server/photos";
 import { getProfile } from "@/server/data/customer";
+import { getDraft } from "@/server/drafts";
 import { getSessionUser } from "@/server/session";
 import { getPhotoStore } from "@/server/storage";
 import { OrderForm } from "./OrderForm";
@@ -41,12 +42,15 @@ async function NewOrder({ searchParams }: { searchParams: PageProps<"/order/new"
   const db = getDb();
   const now = new Date();
   const showcaseId = one(params.showcase);
-  const [catalog, settings, profile, cutoffs, showcase] = await Promise.all([
+  const draftParam = one(params.draft);
+  const [catalog, settings, profile, cutoffs, showcase, draft] = await Promise.all([
     getCatalog(db),
     getSettings(db),
     getProfile(db, user.id),
     getNextCutoffs(db, now),
     showcaseId ? getPublishedShowcaseById(db, showcaseId) : Promise.resolve(null),
+    // Scoped to this student: someone else's draft id just isn't found.
+    draftParam && /^[0-9a-f-]{36}$/.test(draftParam) ? getDraft(db, user.id, draftParam) : Promise.resolve(null),
   ]);
 
   const initial: Partial<OrderFormInput> = {
@@ -57,13 +61,15 @@ async function NewOrder({ searchParams }: { searchParams: PageProps<"/order/new"
     },
   };
   const path = one(params.path);
-  if (path && (PATH_TYPES as readonly string[]).includes(path)) initial.pathType = path as PathType;
-  const digital = catalog.categories.filter((c) => c.fulfilment === "digital");
-  if (initial.pathType === "digital") Object.assign(initial, { category: digital.length === 1 ? digital[0].key : "", shippingMode: "none" });
+  if (path && (STUDENT_PATH_TYPES as readonly string[]).includes(path)) initial.pathType = path as StudentPathType;
+  // A link straight to a category, e.g. /order/new?category=shoes.
+  const categoryParam = one(params.category);
+  if (categoryParam && orderableCategories(catalog).some((c) => c.key === categoryParam)) initial.category = categoryParam;
 
   let prefillNote: string | null = null;
   if (showcase) {
-    const category = findCategory(catalog, showcase.category)?.key;
+    const found = findCategory(catalog, showcase.category);
+    const category = found?.fulfilment === "physical" ? found.key : undefined;
     Object.assign(initial, {
       pathType: showcase.productUrl ? "url" : "consultation",
       productUrl: showcase.productUrl ?? "",
@@ -76,19 +82,24 @@ async function NewOrder({ searchParams }: { searchParams: PageProps<"/order/new"
     prefillNote = `Prefilled from “${showcase.title}”. Check the option and your measurements before submitting.`;
   }
 
+  if (draft) {
+    const saved = draft.data as Partial<OrderFormInput>;
+    Object.assign(initial, saved, { contact: { ...initial.contact, ...saved.contact } });
+    prefillNote = "From your cart. Finish it and submit, or save your changes back to the cart.";
+  }
+
   const nextCutoffs = Object.fromEntries(Object.entries(cutoffs).map(([m, d]) => [m, d!.toISOString()]));
 
   return (
     <OrderForm
       initial={initial}
       settings={settings}
-      catalog={catalog}
-      helpImageUrls={await helpImageUrls(getPhotoStore(), catalog)}
       nextCutoffs={nextCutoffs}
       savedMeasurements={profile?.savedMeasurements ?? {}}
       uploadsEnabled={getPhotoStore() !== null}
       nowMs={now.getTime()}
       prefillNote={prefillNote}
+      draftId={draft?.id ?? null}
     />
   );
 }

@@ -8,7 +8,8 @@ test.use({ storageState: path.join(AUTH_DIR, "admin.json") });
 test("add a field to a category and publish a new version", async ({ page }) => {
   await page.goto("/admin/settings/categories");
   await page.getByRole("link", { name: /Dress/ }).first().click();
-  await expect(page.getByText(/Published v1/)).toBeVisible();
+  // Dress is on version 3: 0008 added height and weight, 0009 removed dress length.
+  await expect(page.getByText(/Published v3/)).toBeVisible();
 
   await page.getByRole("button", { name: "Add field" }).last().click();
   await page.getByRole("menuitem", { name: "Short text" }).click();
@@ -23,11 +24,29 @@ test("add a field to a category and publish a new version", async ({ page }) => 
 
   await page.getByRole("button", { name: "Publish…" }).click();
   const publish = page.getByRole("dialog");
-  await expect(publish.getByText("Publish version 2")).toBeVisible();
+  await expect(publish.getByText("Publish version 4")).toBeVisible();
   await expect(publish.getByText("fabric_preference")).toBeVisible();
   await publish.getByRole("button", { name: "Publish now" }).click();
   await expect(publish).toBeHidden();
-  await expect(page.getByText(/Published v2/)).toBeVisible();
+  await expect(page.getByText(/Published v4/)).toBeVisible();
+});
+
+test("a search word added in the admin finds the category straight away", async ({ page, request }) => {
+  const before = await (await request.get("/api/categories?q=frock")).json();
+  expect(before.categories.map((c: { key: string }) => c.key)).not.toContain("dress");
+
+  await page.goto("/admin/settings/categories");
+  await page.getByRole("link", { name: /Dress/ }).first().click();
+  await page.getByRole("button", { name: "Basic info" }).click();
+  const sheet = page.getByRole("dialog");
+  const words = sheet.getByLabel(/Search words/);
+  await expect(words).toHaveValue(/gown/);
+  await words.fill(`${await words.inputValue()}, frock`);
+  await sheet.getByRole("button", { name: "Save info" }).click();
+  await expect(sheet).toBeHidden();
+
+  const after = await (await request.get("/api/categories?q=frock")).json();
+  expect(after.categories[0]).toMatchObject({ key: "dress", match: { via: "frock" } });
 });
 
 test("settings pages open", async ({ page }) => {

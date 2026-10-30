@@ -3,8 +3,8 @@ import { findCategory, validateCategoryInput, type Catalog, type PublishedCatego
 import {
   CONDITION_PREFERENCES,
   FULFILMENT_METHODS,
-  PATH_TYPES,
   SHIPPING_MODES,
+  STUDENT_PATH_TYPES,
   type ConditionPreference,
   type FulfilmentMethod,
   type PathType,
@@ -22,7 +22,7 @@ import { availableShippingModes } from "./shippingOptions";
 export const MAX_REFERENCE_PHOTOS = 6;
 
 export const orderFormSchema = z.object({
-  pathType: z.enum(PATH_TYPES),
+  pathType: z.enum(STUDENT_PATH_TYPES, { error: "Choose how you'd like to start" }),
   /** Raw pasted text; the link is extracted and validated separately. */
   productUrl: z.string().max(4000).default(""),
   itemName: z
@@ -114,7 +114,7 @@ export function validateOrderInput(raw: unknown, catalog: Catalog): OrderValidat
   }
 
   // ---- link and path routing ----------------------------------------------
-  let pathType = v.pathType;
+  let pathType: PathType | undefined = v.pathType;
   let rerouted = false;
   let platform: Platform = "other";
   let productUrl: string | null = null;
@@ -136,13 +136,9 @@ export function validateOrderInput(raw: unknown, catalog: Catalog): OrderValidat
   let category: PublishedCategory | null = null;
   if (v.category !== undefined) {
     category = findCategory(catalog, v.category);
+    // Only physical categories take new orders.
+    if (category?.fulfilment !== "physical") category = null;
     if (!category) add("category", "Choose a category");
-  }
-  if (category && pathType === "digital" && category.fulfilment !== "digital") {
-    add("category", "Digital orders use a digital product category");
-  }
-  if (category && pathType && pathType !== "digital" && category.fulfilment === "digital") {
-    add("category", "For digital items, choose “You want a digital product” at the start");
   }
 
   const cat = category
@@ -159,7 +155,7 @@ export function validateOrderInput(raw: unknown, catalog: Catalog): OrderValidat
     add("referencePhotoKeys", "Add at least one photo or screenshot of the item");
   }
   const needsCondition = pathType === "reverse_search" || pathType === "consultation" || !productUrl;
-  if (pathType && needsCondition && pathType !== "digital" && !v.conditionPreference) {
+  if (pathType && needsCondition && !v.conditionPreference) {
     add("conditionPreference", "Tell us whether secondhand is OK");
   }
   if (pathType === "consultation" && (v.remarks ?? "").length < 10) {
@@ -172,11 +168,7 @@ export function validateOrderInput(raw: unknown, catalog: Catalog): OrderValidat
     if (!modes.includes(v.shippingMode)) {
       add(
         "shippingMode",
-        modes.length === 1 && modes[0] === "none"
-          ? "Digital items don't ship"
-          : modes.length === 0
-            ? "This category can't be shipped from this platform"
-            : "Choose one of the shipping options shown",
+        modes.length === 0 ? "This category can't be shipped from this platform" : "Choose one of the shipping options shown",
       );
     }
   }
@@ -203,7 +195,7 @@ export function validateOrderInput(raw: unknown, catalog: Catalog): OrderValidat
       categoryVersionId: category.versionId,
       details: cat.details,
       variantText: v.variantText || null,
-      conditionPreference: pathType === "digital" ? null : (v.conditionPreference ?? null),
+      conditionPreference: v.conditionPreference ?? null,
       shippingMode: v.shippingMode,
       fulfilment: shippable ? v.fulfilment : "campus_pickup",
       domesticFreeShipping: shippable && v.domesticFreeShipping,

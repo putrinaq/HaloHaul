@@ -45,6 +45,7 @@ export function CategoryEditor({ data, imageUrls: initialUrls }: { data: Data; i
     defaultHeightMm: c.defaultParcel.heightMm,
     allowedShippingModes: c.allowedShippingModes,
     restrictedNote: c.restrictedNote,
+    aliases: c.aliases,
     isActive: c.isActive,
   });
   const [def, setDef] = useState<CategoryDefinition>(data.draft?.definition ?? data.published?.definition ?? EMPTY);

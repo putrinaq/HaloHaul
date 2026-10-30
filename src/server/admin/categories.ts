@@ -10,6 +10,7 @@ import {
   measurementRefErrors,
   type CategoryDefinition,
 } from "../../domain/categoryDefinition";
+import { cleanAliases } from "../../domain/categorySearch";
 import type { CategoryFulfilment, MeasurementGroup, MeasurementUnit, ShippingMode } from "../../domain/enums";
 import { audit } from "../audit";
 import { invalidateCatalog, toCategoryInfo, toMeasurementDef } from "../data/categories";
@@ -78,6 +79,8 @@ export interface CategoryInfoInput {
   defaultHeightMm: number;
   allowedShippingModes: ShippingMode[];
   restrictedNote: string | null;
+  /** Search words; cleaned before saving. */
+  aliases: string[];
   isActive: boolean;
 }
 
@@ -92,10 +95,12 @@ export async function createCategory(db: Db, actorId: string, input: CategoryInf
   return mutate(db, async (tx) => {
     const [exists] = await tx.select({ id: categories.id }).from(categories).where(eq(categories.key, input.key));
     if (exists) throw new UserError("That key is taken.", { key: "Already used by another category" });
+    // Digital products aren't offered; the value only survives on old categories.
+    if (input.fulfilment !== "physical") throw new UserError("New categories must be physical items.");
     const [{ max }] = await tx.select({ max: sql<number>`coalesce(max(${categories.sortOrder}), 0)::int` }).from(categories);
     const [cat] = await tx
       .insert(categories)
-      .values({ ...input, allowedShippingModes: modesFor(input), sortOrder: max + 10 })
+      .values({ ...input, aliases: cleanAliases(input.aliases), allowedShippingModes: modesFor(input), sortOrder: max + 10 })
       .returning({ id: categories.id });
     await tx.insert(categoryVersions).values({ categoryId: cat.id, version: 1, status: "draft", definition: { sections: [{ title: "", fields: [] }] }, createdBy: actorId });
     await audit(tx, { actorId, action: "category.create", entityType: "category", entityId: cat.id, summary: `Created category “${input.name}” (${input.key})` });
@@ -107,7 +112,7 @@ export async function updateCategoryInfo(db: Db, actorId: string, id: string, in
   return mutate(db, async (tx) => {
     const [before] = await tx.select().from(categories).where(eq(categories.id, id));
     if (!before) throw new UserError("That category no longer exists.");
-    await tx.update(categories).set({ ...input, allowedShippingModes: modesFor(input) }).where(eq(categories.id, id));
+    await tx.update(categories).set({ ...input, aliases: cleanAliases(input.aliases), allowedShippingModes: modesFor(input) }).where(eq(categories.id, id));
     await audit(tx, {
       actorId,
       action: "category.update",

@@ -3,10 +3,12 @@ import { Logo } from "@/components/brand/Logo";
 
 const LINKS = [
   { href: "/how-it-works", label: "How it works" },
+  { href: "/pricing", label: "Pricing" },
+  { href: "/faq", label: "FAQ" },
   { href: "/shipping", label: "Shipping schedule" },
   { href: "/catalogue", label: "What people bought" },
   { href: "/terms", label: "Terms" },
-  { href: "/terms#privacy", label: "Privacy" },
+  { href: "/privacy", label: "Privacy" },
 ];
 
 export function SiteFooter() {

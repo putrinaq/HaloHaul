@@ -1,139 +1,306 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { connection } from "next/server";
 import { Suspense } from "react";
+import { BusinessDetails, LegalPage, type LegalSection } from "@/components/site/LegalPage";
 import { getDb } from "@/db/client";
-import { getRestrictedKeywords, getSettings } from "@/server/data/catalog";
 import { formatMyr } from "@/lib/format";
+import { getRestrictedKeywords, getSettings } from "@/server/data/catalog";
 
-export const metadata: Metadata = { title: "Terms & privacy" };
+export const metadata: Metadata = {
+  title: "Terms & Conditions",
+  description: "The terms for ordering through HaloHaul: quotes, payment, shipping, pickup, cancellations and refunds.",
+};
 
-// DRAFT — have this reviewed before launch.
+// Have these reviewed by someone qualified in Malaysian law before relying on them.
+
+const loading = <p>Loading…</p>;
+
+const SECTIONS: LegalSection[] = [
+  {
+    id: "about",
+    title: "About these terms",
+    body: (
+      <>
+        <p>
+          These terms apply whenever you use HaloHaul or place an order with us. By creating an account or placing an
+          order, you agree to them. HaloHaul is run by:
+        </p>
+        <Suspense fallback={loading}>
+          <BusinessDetails />
+        </Suspense>
+        <p>
+          You need to be 18 or over to order, or have a parent or guardian&apos;s permission. How we handle your
+          personal data is explained in our <Link href="/privacy">Privacy Policy</Link>.
+        </p>
+      </>
+    ),
+  },
+  {
+    id: "service",
+    title: "What we do",
+    body: (
+      <p>
+        HaloHaul is a personal buying service. You ask us to buy an item from a Chinese marketplace; we buy it on your
+        behalf, have it shipped to Malaysia with a forwarder, and hand it to you on campus or send it by Lalamove. We
+        act as your agent: we are not the seller, and the item&apos;s quality and description are the seller&apos;s
+        responsibility. We check what we can and help you when something goes wrong.
+      </p>
+    ),
+  },
+  {
+    id: "account",
+    title: "Your account",
+    body: (
+      <ul>
+        <li>Give us accurate details, including a WhatsApp number we can reach you on.</li>
+        <li>Keep your sign-in to yourself. You&apos;re responsible for orders placed from your account.</li>
+        <li>We may suspend an account that&apos;s used for fraud, abuse or items we can&apos;t legally handle.</li>
+      </ul>
+    ),
+  },
+  {
+    id: "requests",
+    title: "Placing a request",
+    body: (
+      <ul>
+        <li>Tell us exactly what you want: the link, option (colour, size, version) and quantity.</li>
+        <li>
+          For clothing and other sized items we ask for your measurements and check them against the seller&apos;s
+          size chart. Sizing differs between sellers, so we can&apos;t guarantee fit. Measure carefully and tell us
+          how you like things to fit.
+        </li>
+        <li>
+          A photo search or consultation has a fee, paid before we start. It&apos;s credited toward your order if you
+          go ahead, and kept for the work done if you don&apos;t. See <Link href="/pricing">Pricing</Link>.
+        </li>
+      </ul>
+    ),
+  },
+  {
+    id: "quotes",
+    title: "Quotes and prices",
+    body: (
+      <Suspense fallback={loading}>
+        <QuoteTerms />
+      </Suspense>
+    ),
+  },
+  {
+    id: "payment",
+    title: "Payment",
+    body: (
+      <ul>
+        <li>Pay by DuitNow to the details shown on your order, for the exact amount, then upload your receipt.</li>
+        <li>Your payment counts once we&apos;ve confirmed the money has arrived. Nothing is bought before that.</li>
+        <li>If a receipt doesn&apos;t match a payment we received, we&apos;ll tell you why and the order waits until it&apos;s sorted.</li>
+        <li>A false or edited receipt means the order is cancelled and the account may be closed.</li>
+      </ul>
+    ),
+  },
+  {
+    id: "shipping",
+    title: "Shipping and the weigh-in",
+    body: (
+      <>
+        <Suspense fallback={loading}>
+          <ShippingTerms />
+        </Suspense>
+        <p>
+          Orders travel in batches with cutoff dates (see the <Link href="/shipping">shipping schedule</Link>).
+          Delivery times are estimates: customs, the forwarder and holidays can delay a batch. Import duties or taxes
+          set by Malaysian authorities, where they apply, are payable by you.
+        </p>
+      </>
+    ),
+  },
+  {
+    id: "pickup",
+    title: "Pickup and delivery",
+    body: (
+      <Suspense fallback={loading}>
+        <PickupTerms />
+      </Suspense>
+    ),
+  },
+  {
+    id: "quality",
+    title: "Quality checks, damage and loss",
+    body: (
+      <ul>
+        <li>The warehouse checks items when they arrive and we share photos where the forwarder provides them.</li>
+        <li>
+          If an item arrives at the warehouse wrong or faulty, we contact the seller for a return, exchange or refund
+          under the seller&apos;s policy, and keep you updated.
+        </li>
+        <li>
+          If a parcel is lost or damaged in transit, we claim from the forwarder and pass on to you what we recover
+          for your item.
+        </li>
+        <li>Please check your item at pickup and tell us about any problem straight away.</li>
+      </ul>
+    ),
+  },
+  {
+    id: "cancellation",
+    title: "Cancellation",
+    body: (
+      <ul>
+        <li>You can cancel free of charge before you pay.</li>
+        <li>After paying, you can still cancel until we buy the item from the seller, and you get a full refund.</li>
+        <li>Once we&apos;ve bought the item, the order can&apos;t be cancelled through the site. Contact us and we&apos;ll see what the seller allows.</li>
+        <li>Photo search and consultation fees cover work already done and aren&apos;t refunded.</li>
+      </ul>
+    ),
+  },
+  {
+    id: "refunds",
+    title: "Refunds and credit",
+    body: (
+      <ul>
+        <li>Money we owe you (a shipping difference, a cancelled order, an item the seller couldn&apos;t supply) goes to your HaloHaul balance and is used on your next order.</li>
+        <li>Prefer cash? Ask us and we&apos;ll refund it to the account you paid from.</li>
+        <li>Fees for work already done (searches, consultations, buying an item you then cancel) aren&apos;t refundable unless the problem was ours.</li>
+      </ul>
+    ),
+  },
+  {
+    id: "secondhand",
+    title: "Secondhand items",
+    body: (
+      <p>
+        Secondhand items (for example from Xianyu) are sold as described by the seller. Condition can differ from
+        the photos and they usually can&apos;t be returned. Only choose secondhand if you&apos;re comfortable with that.
+      </p>
+    ),
+  },
+  {
+    id: "restricted",
+    title: "Restricted and prohibited items",
+    body: (
+      <>
+        <p>
+          Some items can&apos;t go by air, need a special shipping line, or can&apos;t be imported at all. We check every
+          order before quoting and may refuse or reroute one. We don&apos;t buy counterfeit goods or anything illegal to
+          import into Malaysia. Currently flagged:
+        </p>
+        <Suspense fallback={loading}>
+          <RestrictedList />
+        </Suspense>
+      </>
+    ),
+  },
+  {
+    id: "rejection",
+    title: "Why we might turn down an order",
+    body: (
+      <ul>
+        <li>The item is restricted, counterfeit, or not allowed into Malaysia.</li>
+        <li>The seller can&apos;t be verified, is out of stock, or won&apos;t ship to the warehouse.</li>
+        <li>The item fails the warehouse check (you&apos;re refunded for it).</li>
+        <li>We can&apos;t find a match for a photo search (the search fee is kept for the work done).</li>
+      </ul>
+    ),
+  },
+  {
+    id: "liability",
+    title: "Our responsibility",
+    body: (
+      <>
+        <p>
+          We take reasonable care with every order. We&apos;re not responsible for what&apos;s outside our control: a
+          seller&apos;s description or quality, customs decisions, or delays by forwarders, couriers or authorities.
+        </p>
+        <p>
+          Where we are at fault, our responsibility for an order is limited to the amount you paid us for it. Nothing
+          in these terms takes away your rights under Malaysian law, including the Consumer Protection Act 1999.
+        </p>
+      </>
+    ),
+  },
+  {
+    id: "changes",
+    title: "Changes, law and contact",
+    body: (
+      <>
+        <p>
+          We may update these terms; the date at the top shows the latest version. Orders already placed follow the
+          terms that applied when you placed them. These terms are governed by the laws of Malaysia.
+        </p>
+        <p>Questions or complaints: contact us using the details in section 1. We aim to reply within 3 working days.</p>
+      </>
+    ),
+  },
+];
 
 export default function TermsPage() {
   return (
-    <article className="mx-auto w-full max-w-3xl space-y-10 px-4 py-12 text-[15px] leading-relaxed [&_h2]:display [&_h2]:text-3xl [&_p]:text-muted-foreground [&_li]:text-muted-foreground">
-      <header>
-        <h1 className="display text-5xl sm:text-6xl">Terms &amp; privacy</h1>
-        <p className="mt-2">Plain-language terms for ordering through HaloHaul.</p>
-      </header>
-
-      <section className="space-y-3">
-        <h2>What we do</h2>
+    <LegalPage
+      title="Terms & Conditions"
+      lede="The plain-language terms for ordering through HaloHaul."
+      updated="30 October 2026"
+      sections={SECTIONS}
+    >
+      {/* Old links pointed at /terms#privacy. */}
+      <section id="privacy" className="scroll-mt-28 rounded-2xl border border-white/10 bg-white/3 p-5">
         <p>
-          HaloHaul is a personal buying service. You ask us to buy an item from a Chinese marketplace; we buy it on
-          your behalf, have it shipped to Malaysia with a forwarder, and hand it to you on campus. We are not the
-          seller, and the item&apos;s quality and description are the seller&apos;s responsibility — but we check what
-          we can and help with problems.
+          Looking for how we use your personal data? Read our <Link href="/privacy">Privacy Policy</Link>.
         </p>
       </section>
+    </LegalPage>
+  );
+}
 
-      <section className="space-y-3">
-        <h2>Quotes and payment</h2>
-        <ul className="list-disc space-y-2 pl-5">
-          <li>Nothing is bought until you accept a quote and your payment is confirmed.</li>
-          <li>Quotes show the item price at cost (RMB, with the exchange rate used), our coordination fee, and a shipping estimate range, separately.</li>
-          <li>Quotes expire; prices and stock can change after that.</li>
-        </ul>
-      </section>
+const loadSettings = async () => {
+  await connection();
+  return getSettings(getDb());
+};
 
-      <section className="space-y-3">
-        <h2>Shipping estimates</h2>
-        <Suspense fallback={<p>Loading…</p>}>
-          <ShippingTerms />
-        </Suspense>
-      </section>
-
-      <section className="space-y-3">
-        <h2>Cancellation</h2>
-        <ul className="list-disc space-y-2 pl-5">
-          <li>You can cancel free of charge before you pay.</li>
-          <li>After paying, you can still cancel until we buy the item from the seller; you get a full refund.</li>
-          <li>Once we have bought the item, the order can&apos;t be cancelled through the site. Contact us and we&apos;ll see what the seller allows.</li>
-          <li>Photo-search and consultation fees cover work already done and aren&apos;t refunded, but they&apos;re credited toward your order if you go ahead.</li>
-        </ul>
-      </section>
-
-      <section className="space-y-3">
-        <h2>Secondhand items</h2>
-        <p>
-          Secondhand items (for example from Xianyu) are sold as described by the seller. Condition can vary from the
-          photos, and they usually can&apos;t be returned. Only choose secondhand if you&apos;re comfortable with that.
-        </p>
-      </section>
-
-      <section className="space-y-3" id="restricted">
-        <h2>Restricted items</h2>
-        <p>
-          Some items can&apos;t be shipped by air, need a special line, or can&apos;t be imported at all. We check every
-          order against our list before quoting, and may refuse or reroute an order. Currently flagged:
-        </p>
-        <Suspense fallback={<p>Loading…</p>}>
-          <RestrictedList />
-        </Suspense>
-      </section>
-
-      <section className="space-y-3">
-        <h2>Why we might reject an order</h2>
-        <ul className="list-disc space-y-2 pl-5">
-          <li>The item is restricted, counterfeit, or not allowed into Malaysia.</li>
-          <li>The seller can&apos;t be verified, is out of stock, or won&apos;t ship to the warehouse.</li>
-          <li>The item fails our quality check at the warehouse — in which case you are refunded for it.</li>
-          <li>We can&apos;t find a match for a photo search (the search fee is kept for the work done).</li>
-        </ul>
-      </section>
-
-      <section className="space-y-3" id="privacy">
-        <h2>Privacy notice (PDPA)</h2>
-        <p>
-          We follow Malaysia&apos;s Personal Data Protection Act 2010. This notice explains what we collect and why.
-        </p>
-        <ul className="list-disc space-y-2 pl-5">
-          <li>
-            <strong className="text-foreground">What we collect:</strong> your name, email, WhatsApp number and campus;
-            the orders you place; photos you upload; and measurements or prescriptions you give us for sizing.
-          </li>
-          <li>
-            <strong className="text-foreground">Why:</strong> only to source, buy, ship and hand over your orders, and
-            to contact you about them. Measurements and prescriptions are used only to choose the right size or lens.
-          </li>
-          <li>
-            <strong className="text-foreground">Who sees it:</strong> the HaloHaul operator. Sellers and forwarders
-            receive only what&apos;s needed to fulfil an order (never your phone number unless delivery needs it).
-            Lalamove receives your delivery details if you choose delivery.
-          </li>
-          <li>
-            <strong className="text-foreground">Photos:</strong> stored privately and only viewable by you and the
-            operator. Location and camera data are removed when you upload.
-          </li>
-          <li>
-            <strong className="text-foreground">How long:</strong> order and payment records are kept for 7 years for
-            accounting. Saved measurements stay until you remove them in your account.
-          </li>
-          <li>
-            <strong className="text-foreground">Your rights:</strong> you can see and correct your details in your
-            account, remove saved measurements at any time, and ask us to delete your account and personal data
-            (order records we must keep for accounting are anonymised instead).
-          </li>
-        </ul>
-      </section>
-    </article>
+async function QuoteTerms() {
+  const s = await loadSettings();
+  return (
+    <ul>
+      <li>
+        Every quote shows, separately: the item at cost (in RMB, with the exchange rate used), our coordination fee,
+        a shipping estimate range and any delivery fee.
+      </li>
+      <li>
+        A quote is open for {s.quote.validDays} day{s.quote.validDays === 1 ? "" : "s"}. After that, prices, stock and
+        exchange rates can change and we&apos;ll send a new quote.
+      </li>
+      <li>Promotional prices apply to orders quoted while the promotion runs.</li>
+    </ul>
   );
 }
 
 async function ShippingTerms() {
-  await connection();
-  const s = await getSettings(getDb());
+  const s = await loadSettings();
   return (
-    <ul className="list-disc space-y-2 pl-5">
+    <ul>
       <li>Shipping is estimated from the seller&apos;s weight or typical weights for the category, so it&apos;s shown as a range.</li>
       <li>When you pay, we collect the top of the range.</li>
-      <li>Your final shipping charge comes from the warehouse weigh-in. If it&apos;s less than you paid, the difference is credited to your HaloHaul balance (or refunded in cash on request).</li>
       <li>
-        If it&apos;s more, you pay the difference — but never more than {s.shipping.overRangeCapPct}% above the top of
-        the quoted range. We absorb anything beyond that.
+        Your final shipping charge comes from the warehouse weigh-in. If it&apos;s less than you paid, the difference
+        goes to your HaloHaul balance (or is refunded in cash on request).
       </li>
-      <li>Nothing is released for pickup while a balance is owed.</li>
-      <li>Lalamove delivery is {formatMyr(s.fees.lalamoveFeeSen)} per person.</li>
+      <li>
+        If it&apos;s more, you pay the difference, but never more than {s.shipping.overRangeCapPct}% above the top of the
+        quoted range. We cover anything beyond that.
+      </li>
+    </ul>
+  );
+}
+
+async function PickupTerms() {
+  const s = await loadSettings();
+  return (
+    <ul>
+      <li>
+        Campus pickup is free, at {s.pickup.pointName}. {s.pickup.windowText}
+      </li>
+      <li>Lalamove delivery is {formatMyr(s.fees.lalamoveFeeSen)} per person, to the address you give us.</li>
+      <li>Nothing is released while a shipping balance is owed.</li>
+      <li>Can&apos;t make the pickup window? Tell us and we&apos;ll arrange another time.</li>
     </ul>
   );
 }
@@ -142,11 +309,11 @@ async function RestrictedList() {
   await connection();
   const items = await getRestrictedKeywords(getDb());
   if (items.length === 0) return <p>No items are flagged right now.</p>;
-  // Group keywords that share a note (e.g. the English and Chinese spellings).
+  // Keywords that share a note (e.g. English and Chinese spellings) are listed once.
   const seen = new Set<string>();
   const notes = items.filter((i) => !i.note || (!seen.has(i.note) && (seen.add(i.note), true)));
   return (
-    <ul className="list-disc space-y-1 pl-5">
+    <ul>
       {notes.map((i) => (
         <li key={i.keyword}>
           <span className="text-foreground">{i.keyword}</span>

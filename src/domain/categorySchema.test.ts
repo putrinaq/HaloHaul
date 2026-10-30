@@ -58,6 +58,8 @@ describe("validateDetails", () => {
     expect(r).toEqual({
       ok: false,
       fieldErrors: {
+        height_cm: "Height (cm) is required",
+        weight_kg: "Weight (kg) is required",
         shoulder_cm: "Shoulder width (cm) is required",
         arm_length_cm: "Arm length (cm) is required",
         body_length_cm: "Body length (cm) is required",
@@ -157,15 +159,20 @@ describe("evaluateCondition", () => {
 describe("buildCategorySchema", () => {
   it("works as a Zod schema with errors at details.<key>", () => {
     const schema = z.object({ details: buildCategorySchema(cat("clothing_bottom"), library) });
-    const bad = schema.safeParse({ details: { waist_cm: 70, hip_cm: 95 } });
+    const bad = schema.safeParse({ details: { height_cm: 160, weight_kg: 50, waist_cm: 70, hip_cm: 95 } });
     expect(bad.success).toBe(false);
     expect(bad.error!.issues.map((i) => [i.path.join("."), i.message])).toEqual([["details.inseam_cm", "Inseam (cm) is required"]]);
-    expect(schema.parse({ details: { waist_cm: "70", hip_cm: 95, inseam_cm: 80 } })).toEqual({ details: { waist_cm: 70, hip_cm: 95, inseam_cm: 80 } });
+    expect(schema.parse({ details: { height_cm: "160", weight_kg: 50, waist_cm: "70", hip_cm: 95, inseam_cm: 80 } })).toEqual({
+      details: { height_cm: 160, weight_kg: 50, waist_cm: 70, hip_cm: 95, inseam_cm: 80 },
+    });
   });
 
   it("keeps validating an old order against its own version after a new one is published", () => {
-    const v1 = cat("clothing_top");
-    const v2 = def({ sections: [{ fields: [{ kind: "measurement", measurementKey: "chest_cm", required: true }, { kind: "text", key: "fit", label: "Fit", required: true }] }] });
+    // Version 1 of Clothing — top, before it asked for height and weight; version 2 is today's.
+    const v1 = def({
+      sections: [{ fields: ["chest_cm", "shoulder_cm", "arm_length_cm", "body_length_cm"].map((k) => ({ kind: "measurement", measurementKey: k, required: true })) }],
+    });
+    const v2 = cat("clothing_top");
     const oldOrder = { chest_cm: 96, shoulder_cm: 44, arm_length_cm: 62, body_length_cm: 70 };
     expect(buildCategorySchema(v1, library).safeParse(oldOrder).success).toBe(true);
     expect(buildCategorySchema(v2, library).safeParse(oldOrder).success).toBe(false);

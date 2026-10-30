@@ -17,6 +17,7 @@ import {
 } from "drizzle-orm/pg-core";
 import type { ShippingChoiceSnapshot } from "../../domain/analytics";
 import type { CategoryDefinition } from "../../domain/categoryDefinition";
+import { MEASUREMENT_GROUPS, MEASUREMENT_UNITS, type MeasurementGroup, type MeasurementUnit } from "../../domain/enums";
 import type { SettingsInput } from "../../domain/settings";
 import { users } from "./auth";
 import {
@@ -27,8 +28,6 @@ import {
   conditionPreference,
   fulfilmentMethod,
   ledgerEntryType,
-  measurementGroup,
-  measurementUnit,
   orderStatus,
   pathType,
   paymentMethod,
@@ -53,6 +52,25 @@ const updatedAt = timestamp({ withTimezone: true })
 const fxRate = () => numeric({ precision: 12, scale: 6 });
 
 // ---- customers -------------------------------------------------------------
+
+/**
+ * The student's cart: order forms saved part-way ("Add to cart") to finish or
+ * submit later. `data` is the raw form, re-validated in full on submit.
+ * Personal data (it can hold measurements); removed after 90 days untouched.
+ */
+export const orderDrafts = pgTable(
+  "order_drafts",
+  {
+    id: uuid().primaryKey().defaultRandom(),
+    customerId: text()
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    data: jsonb().$type<Record<string, unknown>>().notNull(),
+    createdAt,
+    updatedAt,
+  },
+  (t) => [index().on(t.customerId, t.updatedAt)],
+);
 
 export const customerProfiles = pgTable("customer_profiles", {
   userId: text()
@@ -80,14 +98,14 @@ export const measurementDefinitions = pgTable(
   {
     key: text().primaryKey(),
     label: text().notNull(),
-    unit: measurementUnit().notNull(),
+    unit: text().$type<MeasurementUnit>().notNull(),
     min: doublePrecision().notNull(),
     max: doublePrecision().notNull(),
     step: doublePrecision().notNull(),
     helpText: text(),
     /** R2 key of a how-to-measure picture. */
     helpImageKey: text(),
-    group: measurementGroup().notNull(),
+    group: text().$type<MeasurementGroup>().notNull(),
     sortOrder: integer().notNull().default(0),
     isActive: boolean().notNull().default(true),
     createdAt,
@@ -96,6 +114,8 @@ export const measurementDefinitions = pgTable(
   () => [
     check("measurement_definitions_key", sql`key ~ '^[a-z][a-z0-9_]{0,39}$'`),
     check("measurement_definitions_range", sql`min < max AND step > 0`),
+    check("measurement_definitions_unit", sql.raw(`unit IN (${MEASUREMENT_UNITS.map((u) => `'${u}'`).join(", ")})`)),
+    check("measurement_definitions_group", sql.raw(`"group" IN (${MEASUREMENT_GROUPS.map((g) => `'${g}'`).join(", ")})`)),
   ],
 );
 
@@ -108,6 +128,8 @@ export const categories = pgTable(
     name: text().notNull(),
     /** Lucide icon name from the curated list in domain/categoryIcons. */
     icon: text().notNull().default("Package"),
+    /** Other words students search for it by (synonyms, Malay, Chinese), e.g. "kasut", "鞋". */
+    aliases: text().array().notNull().default(sql`'{}'`),
     sortOrder: integer().notNull().default(0),
     isActive: boolean().notNull().default(true),
     fulfilment: categoryFulfilment().notNull().default("physical"),
