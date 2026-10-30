@@ -101,7 +101,6 @@ function PanelHeading({ title, caption }: { title: string; caption: string }) {
 const ACCENTS = {
   sky: {
     card: "border-sky-400/30 bg-linear-to-br from-sky-400/10 via-sky-400/[0.03] to-transparent",
-    bar: "bg-sky-400",
     chip: "border-sky-400/40 bg-sky-400/15 text-sky-200",
     price: "text-sky-200",
     divider: "border-sky-400/20",
@@ -109,7 +108,6 @@ const ACCENTS = {
   },
   violet: {
     card: "border-violet-400/30 bg-linear-to-br from-violet-400/10 via-violet-400/[0.03] to-transparent",
-    bar: "bg-violet-400",
     chip: "border-violet-400/40 bg-violet-400/15 text-violet-200",
     price: "text-violet-200",
     divider: "border-violet-400/20",
@@ -117,7 +115,6 @@ const ACCENTS = {
   },
   amber: {
     card: "border-amber-400/30 bg-linear-to-br from-amber-400/10 via-amber-400/[0.03] to-transparent",
-    bar: "bg-amber-400",
     chip: "border-amber-400/40 bg-amber-400/15 text-amber-200",
     price: "text-amber-200",
     divider: "border-amber-400/20",
@@ -186,8 +183,7 @@ async function Services() {
         {services(s).map((svc) => {
           const a = ACCENTS[svc.accent];
           return (
-            <li key={svc.path} className={cn("relative overflow-hidden rounded-2xl border p-4 pl-5 sm:p-5 sm:pl-6 md:grid md:grid-cols-2 md:gap-6", a.card)}>
-              <span aria-hidden className={cn("absolute inset-y-0 left-0 w-1", a.bar)} />
+            <li key={svc.path} className={cn("rounded-2xl border p-4 sm:p-5 md:grid md:grid-cols-2 md:gap-6", a.card)}>
               <div className="flex flex-col">
                 <div className="flex items-start gap-3">
                   <span className={cn("grid size-9 shrink-0 place-items-center rounded-lg border", a.chip)}>
