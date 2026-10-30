@@ -4,6 +4,7 @@ import Link from "next/link";
 import { connection } from "next/server";
 import { Suspense, type ReactNode } from "react";
 import { ScrollScope } from "@/components/motion/ScrollScope";
+import { JourneyDiagram } from "@/components/site/JourneyDiagram";
 import { PageHero } from "@/components/site/PageHero";
 import { Price } from "@/components/site/Price";
 import { SectionTabs } from "@/components/site/SectionTabs";
@@ -62,6 +63,7 @@ export default function HowItWorksPage() {
       >
         <SectionTabs
           items={[
+            { href: "#journey", label: "Journey" },
             { href: "#steps", label: "Steps" },
             { href: "#fees", label: "Fees" },
             { href: "#good-to-know", label: "Good to know" },
@@ -70,6 +72,13 @@ export default function HowItWorksPage() {
       </PageHero>
 
       <ScrollScope className="mx-auto w-full max-w-3xl space-y-6 px-4 pb-20 sm:pb-28">
+        <section id="journey" data-scroll-defer className="glass-panel reveal scroll-mt-28 p-5 sm:p-8">
+          <PanelHeading title="The journey" caption="Where your order goes, and who handles each part." />
+          <div className="mt-8">
+            <JourneyDiagram />
+          </div>
+        </section>
+
         <section id="steps" data-scroll-defer className="glass-panel reveal scroll-mt-28 p-5 sm:p-8">
           <PanelHeading title="The steps" caption="From link to pickup." />
           <ol className="mt-6 divide-y divide-white/8">
