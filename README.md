@@ -103,19 +103,18 @@ off, so the 1 GB VPS never resizes images.
 ## Deploy
 
 Push to `main`. GitHub Actions lints, typechecks and tests, then builds the
-`app` and `worker` images and pushes them to GHCR. It then SSHes into the VPS,
-pins `IMAGE_TAG` to the commit SHA and runs `docker compose up -d`. The one-shot
-`migrate` service applies migrations before `app` and `worker` start. Nothing is
-built on the server.
+`app` and `worker` images and pushes them to GHCR. If the `AUTO_DEPLOY` variable
+is `true`, it then runs `scripts/deploy.sh` on the VPS: back up the database,
+switch images, check health, and go back if the new version isn't healthy. The
+one-shot `migrate` service applies migrations before `app` and `worker` start.
+Nothing is built on the server. Setup: [docs/DEPLOY.md](docs/DEPLOY.md).
 
-Putting them live is off until you turn it on: see [docs/DEPLOY.md](docs/DEPLOY.md).
-The VPS needs `/opt/halohaul/.env` (from `.env.example`)
-and `backup.env` (from `backup.env.example`).
+The VPS needs `/opt/halohaul/.env` (from `.env.example`) and `backup.env` (from
+`backup.env.example`).
 
 First-time server prep: `sudo bash scripts/setup-swap.sh`, and install Docker.
 Then, after the first deploy:
 `docker compose run --rm migrate node dist/seed.mjs` creates settings, the
-restricted keywords, open batches and the admin user. The full runbook arrives
-in Phase 6 (`docs/DEPLOY.md`).
+restricted keywords, open batches and the admin user.
 
 Backups and restore: [docs/BACKUP.md](docs/BACKUP.md).
