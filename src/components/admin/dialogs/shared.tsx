@@ -126,6 +126,12 @@ export function parseScaled(input: string, factor: number): number | null {
   return Number.isFinite(n) && n >= 0 ? Math.round(n * factor) : NaN;
 }
 
+/** Like parseScaled, but blank or unreadable input is simply "not measured". */
+export function optionalScaled(input: string, factor: number): number | null {
+  const n = parseScaled(input, factor);
+  return n !== null && Number.isFinite(n) ? n : null;
+}
+
 export const scaledToInput = (v: number | null | undefined, factor: number) => (v === null || v === undefined ? "" : String(v / factor));
 
 export function MoneyInput({

@@ -3,8 +3,9 @@
 import { useEffect, useRef } from "react";
 
 const INTERACTIVE = "a, button, [role='button'], [role='tab'], [role='option'], label, select, summary";
+/** Where the custom cursor steps aside for the system one: text fields, and the Next.js dev overlay. */
 const TEXT_ENTRY =
-  "input:not([type='checkbox'], [type='radio'], [type='submit'], [type='button'], [type='range']), textarea, [contenteditable='true']";
+  "input:not([type='checkbox'], [type='radio'], [type='submit'], [type='button'], [type='range']), textarea, [contenteditable='true'], nextjs-portal";
 
 /**
  * Custom cursor for mouse users: a dot that tracks the pointer exactly and a

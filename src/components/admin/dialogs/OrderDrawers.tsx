@@ -24,8 +24,8 @@ import {
   Loading,
   MoneyInput,
   minorToInput,
+  optionalScaled,
   parseMinor,
-  parseScaled,
   scaledToInput,
   useAction,
   useLoaded,
@@ -64,7 +64,6 @@ function QcForm({ ctx, onDone, onCancel }: { ctx: QcCtx; onDone: (m: string) => 
   const [photos, setPhotos] = useState<UploadedImage[]>(ctx.photos);
   const [notes, setNotes] = useState(o.qcNotes ?? "");
   const { pending, error, fieldErrors, run } = useAction();
-  const num = (v: number | null) => (v !== null && Number.isFinite(v) ? v : null);
 
   function save() {
     run(
@@ -72,10 +71,10 @@ function QcForm({ ctx, onDone, onCancel }: { ctx: QcCtx; onDone: (m: string) => 
         recordQcAction({
           orderId: o.id,
           arrivedAt: arrived,
-          finalWeightG: num(parseScaled(weight, 1000)),
-          finalLengthMm: num(parseScaled(length, 10)),
-          finalWidthMm: num(parseScaled(width, 10)),
-          finalHeightMm: num(parseScaled(height, 10)),
+          finalWeightG: optionalScaled(weight, 1000),
+          finalLengthMm: optionalScaled(length, 10),
+          finalWidthMm: optionalScaled(width, 10),
+          finalHeightMm: optionalScaled(height, 10),
           qcPhotoKeys: photos.map((p) => p.key),
           qcNotes: notes || null,
         }),

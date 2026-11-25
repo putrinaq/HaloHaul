@@ -18,21 +18,12 @@ import {
 } from "@/app/admin/_actions/batches";
 import { ErrorNote, Loading, MoneyInput, parseMinor, parseScaled, useAction, useLoaded } from "@/components/admin/dialogs/shared";
 import { Sheet } from "@/components/admin/Sheet";
-import { useToast } from "@/components/admin/Toast";
+import { useDone, useToast } from "@/components/admin/Toast";
 import { Badge, Field } from "@/components/admin/ui";
 import { BATCH_SHIPPING_MODES, type BatchShippingMode, type BatchStatus } from "@/domain/enums";
 import { BATCH_MODE_LABELS } from "@/domain/labels";
 import { formatMyr } from "@/domain/money";
 import { cn } from "@/lib/utils";
-
-function useDone() {
-  const router = useRouter();
-  const toast = useToast();
-  return (m?: string) => {
-    toast(m ?? "Saved");
-    router.refresh();
-  };
-}
 
 // ---- create / edit ----------------------------------------------------------------------------
 

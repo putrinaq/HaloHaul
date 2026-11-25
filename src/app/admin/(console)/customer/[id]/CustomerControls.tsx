@@ -1,24 +1,14 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { useId, useMemo, useState } from "react";
 import { useForm, useWatch, type FieldErrors, type FieldValues, type UseFormRegister } from "react-hook-form";
 import { anonymiseCustomerAction, customerMeasurementsAction, customerNotesAction } from "@/app/admin/_actions/customers";
 import { CategoryFields } from "@/components/category/CategoryFields";
 import { ErrorNote, useAction } from "@/components/admin/dialogs/shared";
 import { Sheet } from "@/components/admin/Sheet";
-import { useToast } from "@/components/admin/Toast";
+import { useDone } from "@/components/admin/Toast";
 import { Field } from "@/components/admin/ui";
 import { libraryFields, MEASUREMENT_GROUP_LABELS, type MeasurementDef, type SavedMeasurements } from "@/domain/categorySchema";
-
-function useDone() {
-  const router = useRouter();
-  const toast = useToast();
-  return (m?: string) => {
-    toast(m ?? "Saved");
-    router.refresh();
-  };
-}
 
 export function NotesEditor({ id, initial }: { id: string; initial: string | null }) {
   const fid = useId();

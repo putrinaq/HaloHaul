@@ -6,6 +6,7 @@ import { Suspense, type ReactNode } from "react";
 import { ScrollScope } from "@/components/motion/ScrollScope";
 import { JourneyDiagram } from "@/components/site/JourneyDiagram";
 import { PageHero } from "@/components/site/PageHero";
+import { PanelHeading } from "@/components/site/PanelHeading";
 import { Price } from "@/components/site/Price";
 import { SectionTabs } from "@/components/site/SectionTabs";
 import { getDb } from "@/db/client";
@@ -142,15 +143,6 @@ export default function HowItWorksPage() {
           </div>
         </section>
       </ScrollScope>
-    </div>
-  );
-}
-
-function PanelHeading({ title, caption }: { title: string; caption: string }) {
-  return (
-    <div>
-      <h2 className="text-xl font-medium text-white">{title}</h2>
-      <p className="mt-1 text-sm text-white/50">{caption}</p>
     </div>
   );
 }

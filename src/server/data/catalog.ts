@@ -8,9 +8,29 @@ import { parseSettings, type Settings } from "../../domain/settings";
 
 // Public, non-personal data: settings, batch schedule, showcase, restricted list.
 
-export async function getSettings(db: Db): Promise<Settings> {
-  const [row] = await db.select({ data: settings.data }).from(settings).where(eq(settings.id, 1));
-  return parseSettings(row?.data ?? {});
+// Settings are read on nearly every page but change only from the admin
+// Settings pages, so they are cached in memory like the category catalog
+// (one app instance; the worker never reads them). Keyed by the database
+// handle, so a transaction always reads the row afresh.
+const settingsCache = new WeakMap<object, Promise<Settings>>();
+
+export function getSettings(db: Db): Promise<Settings> {
+  let p = settingsCache.get(db);
+  if (!p) {
+    p = db
+      .select({ data: settings.data })
+      .from(settings)
+      .where(eq(settings.id, 1))
+      .then(([row]) => parseSettings(row?.data ?? {}));
+    settingsCache.set(db, p);
+    p.catch(() => settingsCache.delete(db));
+  }
+  return p;
+}
+
+/** Call after the settings row changes. */
+export function invalidateSettings(db: Db): void {
+  settingsCache.delete(db);
 }
 
 /** Open batches with a future cutoff, soonest first. */

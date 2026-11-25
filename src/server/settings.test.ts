@@ -132,7 +132,9 @@ describe("measurement library", () => {
 describe("settings sections", () => {
   it("validates, saves, audits and keeps the exchange-rate history", async () => {
     await expect(updateSettingsSection(db, ADMIN, "fees", { coordinationFeeSen: -1 })).rejects.toThrow();
+    const before = await getSettings(db); // cached from here on
     await updateSettingsSection(db, ADMIN, "fees", { coordinationFeeSen: 700, reverseSearchFeeSen: 400, consultationFeeSen: 2500, lalamoveFeeSen: 300 });
+    expect(before.fees.coordinationFeeSen).not.toBe(700);
     expect((await getSettings(db)).fees.coordinationFeeSen).toBe(700);
 
     await updateSettingsSection(db, ADMIN, "fx", { defaultMyrPerCny: "0.662000" }, "Bank rate");

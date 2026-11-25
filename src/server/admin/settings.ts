@@ -3,9 +3,9 @@ import { asc, count, desc, eq } from "drizzle-orm";
 import { auditLog, fxRates, restrictedItems, settings, users } from "../../db/schema";
 import type { Db } from "../../db/types";
 import type { ShippingMode } from "../../domain/enums";
-import { settingsSchema, type Settings } from "../../domain/settings";
+import { parseSettings, settingsSchema, type Settings } from "../../domain/settings";
 import { audit } from "../audit";
-import { getSettings } from "../data/catalog";
+import { invalidateSettings } from "../data/catalog";
 import { UserError } from "../errors";
 
 // Settings pages. The settings row is one validated JSON document; each page
@@ -25,9 +25,9 @@ const SECTION_LABELS: Record<SettingsSection, string> = {
 };
 
 export async function updateSettingsSection<K extends SettingsSection>(db: Db, actorId: string, section: K, value: unknown, note?: string | null) {
-  return db.transaction(async (tx) => {
-    const current = await getSettings(tx);
+  const saved = await db.transaction(async (tx) => {
     const [row] = await tx.select({ data: settings.data }).from(settings).where(eq(settings.id, 1)).for("update");
+    const current = parseSettings(row?.data ?? {});
     const nextData = { ...(row?.data ?? {}), [section]: value };
     const parsed = settingsSchema.safeParse(nextData);
     if (!parsed.success) {
@@ -51,6 +51,8 @@ export async function updateSettingsSection<K extends SettingsSection>(db: Db, a
     });
     return parsed.data;
   });
+  invalidateSettings(db);
+  return saved;
 }
 
 export async function fxHistory(db: Db, limit = 25) {

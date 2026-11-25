@@ -1,32 +1,16 @@
 "use client";
 
 import { ChevronDown, Ellipsis, MessageCircle } from "lucide-react";
-import { useRouter } from "next/navigation";
 import { DropdownMenu } from "radix-ui";
 import { useState, type ReactNode } from "react";
 import { ActionButton } from "@/components/admin/ActionButton";
 import { OrderDialog } from "@/components/admin/dialogs/OrderDialog";
 import { CancelDialog, DetailsDialog, NeedsInfoDialog, NotesDialog, RejectDialog, TrackingDialog } from "@/components/admin/dialogs/OverflowDrawers";
 import { RecordPaymentDialog } from "@/components/admin/dialogs/PaymentDialogs";
-import { useToast } from "@/components/admin/Toast";
+import { useDone } from "@/components/admin/Toast";
 import type { AdminAction, DialogKind } from "@/domain/adminQueue";
 import type { OrderStatus } from "@/domain/enums";
 import { cn } from "@/lib/utils";
-
-function useDone() {
-  const router = useRouter();
-  const toast = useToast();
-  return {
-    done: (message: string) => {
-      toast(message);
-      router.refresh();
-    },
-    stale: (message: string) => {
-      toast(message, "warn");
-      router.refresh();
-    },
-  };
-}
 
 /** The order's primary action; on phones it is also pinned above the bottom bar. */
 export function PrimaryAction({
@@ -42,9 +26,9 @@ export function PrimaryAction({
   restrictedReason: string | null;
   pinned?: boolean;
 }) {
-  const { done, stale } = useDone();
+  const done = useDone();
   const button = (
-    <ActionButton orderId={orderId} status={status} action={action} restrictedReason={restrictedReason} onDone={done} onStale={stale} className="w-full sm:w-auto sm:min-w-56" />
+    <ActionButton orderId={orderId} status={status} action={action} restrictedReason={restrictedReason} onDone={done} onStale={(m) => done(m, "warn")} className="w-full sm:w-auto sm:min-w-56" />
   );
   if (!pinned) return button;
   return (
@@ -71,7 +55,7 @@ function DrawerFor({
   initial?: { notes?: string | null; trackingNumber?: string | null; trackingNote?: string | null };
   restrictedReason?: string | null;
 }) {
-  const { done } = useDone();
+  const done = useDone();
   const props = {
     orderId,
     open,

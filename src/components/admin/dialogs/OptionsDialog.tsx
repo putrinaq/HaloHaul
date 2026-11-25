@@ -14,8 +14,8 @@ import {
   Loading,
   MoneyInput,
   minorToInput,
+  optionalScaled,
   parseMinor,
-  parseScaled,
   scaledToInput,
   useAction,
   useLoaded,
@@ -163,7 +163,6 @@ function OptionForm({ orderId, option, onSaved, onCancel }: { orderId: number; o
   const [photo, setPhoto] = useState<UploadedImage[]>(option?.photoKey && option.photoUrl ? [{ key: option.photoKey, url: option.photoUrl }] : []);
   const { pending, error, fieldErrors, run } = useAction();
 
-  const num = (v: number | null) => (v !== null && Number.isFinite(v) ? v : null);
   function save() {
     run(
       () =>
@@ -175,10 +174,10 @@ function OptionForm({ orderId, option, onSaved, onCancel }: { orderId: number; o
           priceFen: parseMinor(price) ?? 0,
           sellerNote: note || null,
           photoKey: photo[0]?.key ?? null,
-          estWeightG: num(parseScaled(weight, 1000)),
-          estLengthMm: num(parseScaled(length, 10)),
-          estWidthMm: num(parseScaled(width, 10)),
-          estHeightMm: num(parseScaled(height, 10)),
+          estWeightG: optionalScaled(weight, 1000),
+          estLengthMm: optionalScaled(length, 10),
+          estWidthMm: optionalScaled(width, 10),
+          estHeightMm: optionalScaled(height, 10),
           isRecommended: recommended,
         }),
       onSaved,

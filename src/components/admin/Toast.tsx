@@ -1,6 +1,7 @@
 "use client";
 
 import { CircleCheckBig, TriangleAlert } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { createContext, use, useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { cn } from "@/lib/utils";
 
@@ -22,7 +23,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   return (
     <ToastContext value={show}>
       {children}
-      <div aria-live="polite" className="pointer-events-none fixed inset-x-4 bottom-[calc(6rem+env(safe-area-inset-bottom))] z-[60] flex justify-center lg:bottom-8">
+      <div aria-live="polite" className="pointer-events-none fixed inset-x-4 bottom-[calc(6rem+env(safe-area-inset-bottom))] z-60 flex justify-center lg:bottom-8">
         {toast ? (
           <p
             key={toast.id}
@@ -42,4 +43,17 @@ export function ToastProvider({ children }: { children: ReactNode }) {
 
 export function useToast() {
   return use(ToastContext);
+}
+
+/** After a successful admin action: say so, then re-render the page with the new data. */
+export function useDone() {
+  const router = useRouter();
+  const toast = use(ToastContext);
+  return useCallback(
+    (message = "Saved", tone: Toast["tone"] = "ok") => {
+      toast(message, tone);
+      router.refresh();
+    },
+    [router, toast],
+  );
 }

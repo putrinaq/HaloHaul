@@ -343,11 +343,6 @@ export const SEED_CATEGORIES: SeedCategory[] = [
 /** Measurements every clothing category asks for first (migration 0008 added them). */
 export const BODY_MEASUREMENT_KEYS = ["height_cm", "weight_kg"] as const;
 
-/** Old field keys renamed in v1 (applied to existing orders by the migration). */
-export const RENAMED_DETAIL_KEYS: Record<string, Record<string, string>> = {
-  ring: { inner_circumference_mm: "ring_inner_circumference_mm" },
-};
-
 /** The seed as an in-memory catalogue (version 1 of everything), for pure domain tests. */
 export function seedCatalog(): Catalog {
   const measurements: MeasurementDef[] = SEED_MEASUREMENTS.map((m) => ({

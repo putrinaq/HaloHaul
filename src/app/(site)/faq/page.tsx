@@ -230,8 +230,9 @@ async function Answers() {
     "@type": "FAQPage",
     mainEntity: all.flatMap((g) => g.items.map((f) => ({ "@type": "Question", name: f.q, acceptedAnswer: { "@type": "Answer", text: f.a } }))),
   };
+  // Its own scope: these sections stream in after the page around them has hydrated.
   return (
-    <>
+    <ScrollScope className="space-y-6">
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd).replace(/</g, "\\u003c") }} />
       {all.map((g) => (
         <section key={g.id} id={g.id} data-scroll-defer className="glass-panel reveal scroll-mt-28 p-5 sm:p-8">
@@ -253,6 +254,6 @@ async function Answers() {
           </Accordion>
         </section>
       ))}
-    </>
+    </ScrollScope>
   );
 }

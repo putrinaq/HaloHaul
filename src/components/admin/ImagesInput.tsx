@@ -2,6 +2,7 @@
 
 import { ImagePlus, X } from "lucide-react";
 import { useId, useState } from "react";
+import { uploadImage } from "@/lib/uploadImage";
 
 export interface UploadedImage {
   key: string;
@@ -10,31 +11,6 @@ export interface UploadedImage {
 }
 
 type Purpose = "help" | "sourcing" | "qc" | "product" | "store";
-
-async function uploadOne(file: File, purpose: Purpose): Promise<UploadedImage> {
-  const presign = await fetch("/api/admin/uploads/presign", {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ contentType: file.type, size: file.size }),
-  });
-  const p = await presign.json();
-  if (!presign.ok) throw new Error(p.error ?? "Upload failed");
-  let put: Response;
-  try {
-    put = await fetch(p.url, { method: "PUT", headers: p.headers, body: file });
-  } catch {
-    throw new Error("Couldn't reach storage. Check your connection and try again.");
-  }
-  if (!put.ok) throw new Error("Upload failed. Try again.");
-  const fin = await fetch("/api/admin/uploads/finalize", {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ key: p.key, purpose }),
-  });
-  const f = await fin.json();
-  if (!fin.ok) throw new Error(f.error ?? "Upload failed");
-  return { key: f.key, url: f.previewUrl };
-}
 
 /**
  * Admin image picker: uploads straight to storage (re-encoded to WebP with a
@@ -63,15 +39,14 @@ export function ImagesInput({
     const room = Math.max(0, max - value.length);
     const picked = [...files].slice(0, room);
     setBusy(picked.length);
+    // In parallel; the images keep the order they were picked in.
+    const results = await Promise.allSettled(
+      picked.map((file) => uploadImage(file, "/api/admin/uploads", { purpose }).finally(() => setBusy((n) => n - 1))),
+    );
     const done: UploadedImage[] = [];
-    for (const file of picked) {
-      try {
-        done.push(await uploadOne(file, purpose));
-      } catch (e) {
-        setError((e as Error).message);
-      } finally {
-        setBusy((n) => n - 1);
-      }
+    for (const r of results) {
+      if (r.status === "fulfilled") done.push({ key: r.value.key, url: r.value.previewUrl });
+      else setError((r.reason as Error).message);
     }
     if (done.length) onChange([...value, ...done]);
   }

@@ -109,7 +109,6 @@ export const fieldSchema = z.discriminatedUnion("kind", [
   z.strictObject({ kind: z.literal("boolean"), key: fieldKey, label, ...common }),
 ]);
 export type FieldDef = z.infer<typeof fieldSchema>;
-export type FieldDefInput = z.input<typeof fieldSchema>;
 
 /** Field key: measurement fields are keyed by their measurement. */
 export function keyOf(f: Pick<FieldDef, "kind"> & { key?: string; measurementKey?: string }): string {
@@ -246,11 +245,6 @@ export function diffDefinitions(before: CategoryDefinition | null, after: Catego
     changed,
     optionChanged: JSON.stringify(before?.option ?? null) !== JSON.stringify(after.option ?? null),
   };
-}
-
-/** Keys from `before` that `after` must keep (keys are immutable once published). */
-export function removedPublishedKeys(published: CategoryDefinition | null, draft: CategoryDefinition): string[] {
-  return diffDefinitions(published, draft).removed;
 }
 
 /**

@@ -1,13 +1,12 @@
 "use client";
 
 import { Plus } from "lucide-react";
-import { useRouter } from "next/navigation";
 import { useId, useState } from "react";
 import { deleteProductAction, productFromOrderAction, publishProductAction, saveProductAction } from "@/app/admin/_actions/customers";
 import { ErrorNote, MoneyInput, minorToInput, parseMinor, useAction } from "@/components/admin/dialogs/shared";
 import { ImagesInput, type UploadedImage } from "@/components/admin/ImagesInput";
 import { Sheet } from "@/components/admin/Sheet";
-import { useToast } from "@/components/admin/Toast";
+import { useDone } from "@/components/admin/Toast";
 import { Field } from "@/components/admin/ui";
 import { PLATFORMS, SHIPPING_MODES, type Platform, type ShippingMode } from "@/domain/enums";
 import { PLATFORM_LABELS, SHIPPING_MODE_LABELS } from "@/domain/labels";
@@ -47,15 +46,6 @@ const blank: ProductValue = {
   sortOrder: 0,
   sourceOrderId: null,
 };
-
-function useDone() {
-  const router = useRouter();
-  const toast = useToast();
-  return (m?: string) => {
-    toast(m ?? "Saved");
-    router.refresh();
-  };
-}
 
 export function NewProductButtons({ completedOrders, categories }: { completedOrders: Array<{ id: number; itemName: string }>; categories: Array<{ key: string; name: string }> }) {
   const [value, setValue] = useState<ProductValue | null>(null);

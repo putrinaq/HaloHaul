@@ -1,5 +1,5 @@
 import "server-only";
-import { and, count, desc, eq, ilike, or, sql } from "drizzle-orm";
+import { count, desc, eq, ilike, or, sql } from "drizzle-orm";
 import { customerProfiles, ledgerEntries, orders, payments, users } from "../../db/schema";
 import type { Db } from "../../db/types";
 
@@ -84,7 +84,3 @@ export async function ledgerSearch(db: Db, q: string, page: number, pageSize = 2
   return { rows, total: n, balanceSen: sum, pageCount: Math.max(1, Math.ceil(n / pageSize)) };
 }
 
-export async function pendingProofCount(db: Db) {
-  const [{ n }] = await db.select({ n: count() }).from(payments).where(and(eq(payments.status, "pending")));
-  return n;
-}

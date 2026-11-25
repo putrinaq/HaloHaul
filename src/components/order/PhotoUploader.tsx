@@ -2,42 +2,8 @@
 
 import { ImagePlus, Loader2, X } from "lucide-react";
 import { useRef, useState } from "react";
+import { uploadImage } from "@/lib/uploadImage";
 import { cn } from "@/lib/utils";
-
-interface Photo {
-  key: string;
-  preview: string;
-}
-
-async function uploadOne(file: File): Promise<Photo> {
-  const presign = await fetch("/api/uploads/presign", {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ contentType: file.type, size: file.size }),
-  });
-  const p = await presign.json();
-  if (!presign.ok) throw new Error(p.error ?? "Upload failed");
-
-  // The browser uploads straight to R2. If R2 can't be reached at all (offline,
-  // bad storage config, missing bucket CORS) fetch throws a raw browser message
-  // like "NetworkError when attempting to fetch resource"; show a plain one.
-  let put: Response;
-  try {
-    put = await fetch(p.url, { method: "PUT", headers: p.headers, body: file });
-  } catch {
-    throw new Error("We couldn't reach our photo storage. Check your connection and try again.");
-  }
-  if (!put.ok) throw new Error("Upload failed. Check your connection and try again.");
-
-  const fin = await fetch("/api/uploads/finalize", {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ key: p.key }),
-  });
-  const f = await fin.json();
-  if (!fin.ok) throw new Error(f.error ?? "Upload failed");
-  return { key: f.key, preview: f.previewUrl };
-}
 
 /**
  * Uploads straight to R2 via presigned URLs, then the server re-encodes the
@@ -78,16 +44,17 @@ export function PhotoUploader({
     const chosen = Array.from(files).slice(0, room);
     if (files.length > room) setError(`Up to ${max} photos.`);
     setBusy((n) => n + chosen.length);
+    // In parallel; the photos keep the order they were picked in.
+    const results = await Promise.allSettled(
+      chosen.map((file) => uploadImage(file, "/api/uploads").finally(() => setBusy((n) => n - 1))),
+    );
     const added: string[] = [];
-    for (const file of chosen) {
-      try {
-        const photo = await uploadOne(file);
-        added.push(photo.key);
-        setPreviews((p) => ({ ...p, [photo.key]: photo.preview }));
-      } catch (e) {
-        setError(e instanceof Error ? e.message : "Upload failed");
-      } finally {
-        setBusy((n) => n - 1);
+    for (const r of results) {
+      if (r.status === "fulfilled") {
+        added.push(r.value.key);
+        setPreviews((p) => ({ ...p, [r.value.key]: r.value.previewUrl }));
+      } else {
+        setError(r.reason instanceof Error ? r.reason.message : "Upload failed");
       }
     }
     if (added.length) onChange([...value, ...added]);

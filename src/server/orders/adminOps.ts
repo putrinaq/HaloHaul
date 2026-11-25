@@ -1,5 +1,5 @@
 import "server-only";
-import { and, asc, eq, inArray, ne, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, sql } from "drizzle-orm";
 import { batches, orders, payments, quotes, sourcingOptions } from "../../db/schema";
 import type { Db } from "../../db/types";
 import { nextAdminAction, needsUpfrontFee } from "../../domain/adminQueue";
@@ -527,10 +527,6 @@ export async function cancelOrder(db: Db, adminId: string, input: { orderId: num
 
 // ---- reads used by the drawers ---------------------------------------------------------
 
-export async function listSourcingOptions(db: Db, orderId: number) {
-  return db.select().from(sourcingOptions).where(eq(sourcingOptions.orderId, orderId)).orderBy(asc(sourcingOptions.sortOrder), asc(sourcingOptions.createdAt));
-}
-
 /** Open and locked batches a given order could join (same mode). */
 export async function batchesForMode(db: Db, mode: ShippingMode) {
   if (!isBatchShippingMode(mode)) return [];
@@ -548,10 +544,3 @@ export async function batchesForMode(db: Db, mode: ShippingMode) {
     .orderBy(asc(batches.cutoffAt));
 }
 
-export async function pendingPaymentsFor(db: Db, orderId: number) {
-  return db
-    .select()
-    .from(payments)
-    .where(and(eq(payments.orderId, orderId), ne(payments.status, "failed")))
-    .orderBy(asc(payments.createdAt));
-}
