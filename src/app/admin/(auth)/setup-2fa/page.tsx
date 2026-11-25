@@ -17,7 +17,7 @@ export default function SetupTwoFactorPage() {
 /** Admins only, and only until 2FA is on (then requireAdmin lets them into the console). */
 async function Gate() {
   const user = await getSessionUser();
-  if (!user) redirect("/sign-in?next=/admin");
+  if (!user) redirect("/admin/sign-in");
   if (user.role !== "admin") notFound();
   if (user.twoFactorEnabled) redirect("/admin");
   return <SetupTwoFactor email={user.email} />;

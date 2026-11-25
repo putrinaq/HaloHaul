@@ -1,6 +1,7 @@
 import "server-only";
 import { headers } from "next/headers";
 import { notFound, redirect } from "next/navigation";
+import { cache } from "react";
 import type { UserRole } from "../domain/enums";
 import { getAuth } from "./auth";
 import { env } from "./env";
@@ -13,7 +14,12 @@ export interface SessionUser {
   twoFactorEnabled: boolean;
 }
 
-export async function getSessionUser(): Promise<SessionUser | null> {
+/**
+ * The signed-in user, or null. Memoised per request with React's cache(): the
+ * header, the mobile tab bar and the page all ask, and each lookup is a
+ * database query.
+ */
+export const getSessionUser = cache(async (): Promise<SessionUser | null> => {
   // Await the request headers first: during prerender this suspends, so the
   // auth instance (and its env/secret checks) is only built at request time.
   const requestHeaders = await headers();
@@ -27,14 +33,7 @@ export async function getSessionUser(): Promise<SessionUser | null> {
     role: u.role,
     twoFactorEnabled: Boolean(u.twoFactorEnabled),
   };
-}
-
-/** Any signed-in user. Every student query must be scoped by this user's id. */
-export async function requireUser(): Promise<SessionUser> {
-  const user = await getSessionUser();
-  if (!user) redirect("/sign-in");
-  return user;
-}
+});
 
 /**
  * Admin with 2FA enabled. Non-admins get a 404 so the admin area's existence
@@ -42,7 +41,7 @@ export async function requireUser(): Promise<SessionUser> {
  */
 export async function requireAdmin(): Promise<SessionUser> {
   const user = await getSessionUser();
-  if (!user) redirect("/sign-in?next=/admin");
+  if (!user) redirect("/admin/sign-in");
   if (user.role !== "admin") notFound();
   if (!user.twoFactorEnabled && adminNeedsTwoFactor()) redirect("/admin/setup-2fa");
   return user;

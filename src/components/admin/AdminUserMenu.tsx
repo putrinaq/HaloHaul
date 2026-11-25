@@ -49,7 +49,7 @@ export function AdminUserMenu({ name, email }: { name: string; email: string }) 
           <DropdownMenu.Item
             onSelect={async () => {
               await authClient.signOut();
-              router.push("/sign-in");
+              router.push("/admin/sign-in");
               router.refresh();
             }}
             className={`${item} cursor-pointer`}

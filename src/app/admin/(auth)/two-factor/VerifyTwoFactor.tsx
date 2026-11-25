@@ -5,11 +5,11 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useState, type FormEvent } from "react";
 import { CodeField, twoFactorError } from "@/components/admin/CodeField";
 import { authClient } from "@/lib/auth-client";
-import { safeNext } from "@/lib/safeNext";
+import { safeAdminNext } from "@/lib/safeNext";
 
 export function VerifyTwoFactor() {
   const router = useRouter();
-  const next = safeNext(useSearchParams().get("next"), "/admin");
+  const next = safeAdminNext(useSearchParams().get("next"));
   const [backup, setBackup] = useState(false);
   const [code, setCode] = useState("");
   const [trustDevice, setTrustDevice] = useState(false);
@@ -79,7 +79,7 @@ export function VerifyTwoFactor() {
         >
           {backup ? "Use the authenticator app" : "Use a backup code"}
         </button>
-        <Link href="/sign-in" className="link-underline tap-area text-white/55 hover:text-white">
+        <Link href="/admin/sign-in" className="link-underline tap-area text-white/55 hover:text-white">
           Start over
         </Link>
       </div>

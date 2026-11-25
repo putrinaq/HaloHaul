@@ -3,7 +3,7 @@ import { Logo } from "@/components/brand/Logo";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
 
-/** Bare, centred card for the admin's two-factor screens (no console chrome yet). */
+/** Bare, centred card for the admin's sign-in and two-factor screens (no console chrome yet). */
 export default function AdminAuthLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="relative isolate flex flex-1 flex-col items-center justify-center overflow-x-clip px-4 py-10">

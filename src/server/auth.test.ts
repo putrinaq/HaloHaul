@@ -141,3 +141,44 @@ describe("auth input sanitising", () => {
     ).rejects.toThrow();
   });
 });
+
+describe("separate admin and student sign-in", () => {
+  let ip = 0;
+  const signIn = (email: string, password: string, admin: boolean) =>
+    auth.handler(
+      new Request("http://localhost:3000/api/auth/sign-in/email", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          origin: "http://localhost:3000",
+          "x-forwarded-for": `198.51.100.${++ip}`,
+          ...(admin ? { "x-halohaul-admin-portal": "1" } : {}),
+        },
+        body: JSON.stringify({ email, password }),
+      }),
+    );
+  const password = "correct-horse-battery";
+
+  beforeAll(async () => {
+    for (const email of ["boss@example.com", "pelajar@example.com"]) {
+      await auth.api.signUpEmail({ body: { name: "Someone", email, password } });
+    }
+    await db.update(users).set({ role: "admin" }).where(eq(users.email, "boss@example.com"));
+  });
+
+  it("lets each account in on its own page", async () => {
+    expect((await signIn("boss@example.com", password, true)).status).toBe(200);
+    expect((await signIn("pelajar@example.com", password, false)).status).toBe(200);
+  });
+
+  it("refuses each on the other's, exactly like a wrong password and with no session", async () => {
+    const wrong = await signIn("pelajar@example.com", "not-the-password", false);
+    const wrongBody = await wrong.json();
+    for (const [email, admin] of [["boss@example.com", false], ["BOSS@example.com", false], ["pelajar@example.com", true]] as const) {
+      const res = await signIn(email, password, admin);
+      expect(res.status).toBe(wrong.status);
+      expect(res.headers.getSetCookie()).toEqual([]);
+      expect(await res.json()).toEqual(wrongBody);
+    }
+  });
+});

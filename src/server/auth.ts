@@ -7,6 +7,7 @@ import { eq } from "drizzle-orm";
 import { USER_ROLES } from "../domain/enums";
 import { checkPassword, cleanEmail, cleanName, type Cleaned } from "../domain/sanitize";
 import { getDb } from "../db/client";
+import { ADMIN_PORTAL_HEADER } from "../lib/authPortal";
 import { accounts, sessions, twoFactors, users, verifications } from "../db/schema";
 import { sendEmail } from "./email";
 import { env } from "./env";
@@ -41,6 +42,20 @@ const sanitizeAuthInput = createAuthMiddleware(async (ctx) => {
   if (PASSWORD_PATHS.has(path)) accept(checkPassword(body.password, { forSignUp: path === "/sign-up/email" }));
   // An `image` URL is never set from our forms; don't let one be smuggled in.
   if (NAME_PATHS.has(path) && body.image !== undefined) throw new APIError("BAD_REQUEST", { message: "Unsupported field." });
+
+  if (path === "/sign-in/email") {
+    // Admins and students sign in on different pages, and neither account works
+    // on the other's. The refusal is the same as a wrong password, and spends
+    // the same time hashing, so it doesn't reveal which emails are admins.
+    // (The header only names the page; what protects the console is the role,
+    // the password and 2FA.)
+    const found = await ctx.context.internalAdapter.findUserByEmail(String(cleaned.email).toLowerCase());
+    const isAdmin = (found?.user as { role?: string } | undefined)?.role === "admin";
+    if (found && isAdmin !== (ctx.headers?.get(ADMIN_PORTAL_HEADER) === "1")) {
+      await ctx.context.password.hash(String(body.password));
+      throw new APIError("UNAUTHORIZED", { code: "INVALID_EMAIL_OR_PASSWORD", message: "Invalid email or password" });
+    }
+  }
 
   if (Object.keys(cleaned).length === 0) return;
   return { context: { body: { ...body, ...cleaned } } };

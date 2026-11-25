@@ -4,10 +4,10 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { ADMIN, AUTH_DIR, BASE, STUDENT, totp } from "./helpers";
 
-async function call(p: string, body: unknown, cookie = "") {
+async function call(p: string, body: unknown, cookie = "", extra: Record<string, string> = {}) {
   const r = await fetch(`${BASE}/api/auth${p}`, {
     method: "POST",
-    headers: { "content-type": "application/json", origin: BASE, cookie },
+    headers: { "content-type": "application/json", origin: BASE, cookie, ...extra },
     body: JSON.stringify(body),
   });
   const json = await r.json().catch(() => null);
@@ -31,7 +31,7 @@ function storageState(cookie: string) {
 export default async function globalSetup() {
   mkdirSync(AUTH_DIR, { recursive: true });
 
-  const signIn = await call("/sign-in/email", ADMIN);
+  const signIn = await call("/sign-in/email", ADMIN, "", { "x-halohaul-admin-portal": "1" });
   const enabled = await call("/two-factor/enable", { password: ADMIN.password }, signIn.cookie);
   const secret = new URL(enabled.json.totpURI).searchParams.get("secret")!;
   writeFileSync(path.join(AUTH_DIR, "admin-totp.txt"), secret);

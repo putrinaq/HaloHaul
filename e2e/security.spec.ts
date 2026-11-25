@@ -1,11 +1,40 @@
 // Who can reach the admin: nobody signed out, never a student.
 import { expect, test } from "@playwright/test";
 import path from "node:path";
-import { AUTH_DIR } from "./helpers";
+import { ADMIN, AUTH_DIR, STUDENT, adminSecret, totp } from "./helpers";
 
-test("signed-out visitors are sent to sign in", async ({ page }) => {
+test("signed-out visitors are sent to the admin's own sign-in", async ({ page }) => {
   await page.goto("/admin");
-  await expect(page).toHaveURL(/\/sign-in\?next=%2Fadmin|\/sign-in\?next=\/admin/);
+  await expect(page).toHaveURL(/\/admin\/sign-in$/);
+  await expect(page.getByRole("heading", { name: "Admin sign in" })).toBeVisible();
+});
+
+test("each account only works on its own sign-in page", async ({ page }) => {
+  await page.goto("/admin/sign-in");
+  await page.getByLabel("Email").fill(STUDENT.email);
+  await page.getByLabel("Password", { exact: true }).fill(STUDENT.password);
+  await page.getByRole("button", { name: "Sign in" }).click();
+  await expect(page.getByText("don't match an admin account")).toBeVisible();
+
+  await page.goto("/sign-in");
+  await page.getByRole("tab", { name: "Password" }).click();
+  const panel = page.getByRole("tabpanel", { name: "Password" });
+  await panel.getByLabel("Email").fill(ADMIN.email);
+  await panel.getByLabel("Password", { exact: true }).fill(ADMIN.password);
+  await panel.getByRole("button", { name: "Sign in", exact: true }).click();
+  await expect(panel.getByText("That email and password don't match.")).toBeVisible();
+
+  await page.goto("/admin/sign-in?next=/admin/payment");
+  await page.getByLabel("Email").fill(ADMIN.email);
+  await page.getByLabel("Password", { exact: true }).fill(ADMIN.password);
+  await page.getByRole("button", { name: "Sign in" }).click();
+  await expect(page).toHaveURL(/\/admin\/two-factor/);
+  await page.getByLabel("6-digit code").fill(totp(adminSecret()));
+  await page.getByRole("button", { name: "Verify" }).click();
+  await expect(page).toHaveURL(/\/admin\/payment$/);
+  // Already signed in: no form, straight through.
+  await page.goto("/admin/sign-in");
+  await expect(page).toHaveURL(/\/admin$/);
 });
 
 test("signed-out CSV export is refused", async ({ request }) => {

@@ -6,3 +6,9 @@ export function safeNext(next: string | null | undefined, fallback = "/orders"):
   if (/[\\\u0000-\u001F\u007F]/.test(next)) return fallback;
   return next;
 }
+
+/** Where an admin lands after signing in: only pages inside the console. */
+export function safeAdminNext(next: string | null | undefined): string {
+  const path = safeNext(next, "/admin");
+  return /^\/admin(?:[/?#]|$)/.test(path) && !path.startsWith("/admin/sign-in") ? path : "/admin";
+}
