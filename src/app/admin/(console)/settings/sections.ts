@@ -8,6 +8,7 @@ export const SETTINGS_SECTIONS = [
   { href: "/admin/settings/restricted", label: "Restricted items", blurb: "Keywords that hold an order for review, by mode and forwarder." },
   { href: "/admin/settings/pickup", label: "Pickup", blurb: "The campus pickup point and the window shown to students." },
   { href: "/admin/settings/messages", label: "Message templates", blurb: "WhatsApp templates with {{name}}, {{order}} and other variables." },
+  { href: "/admin/settings/whatsapp", label: "WhatsApp", blurb: "Link the phone number the Messages inbox uses." },
   { href: "/admin/settings/store", label: "Store", blurb: "The DuitNow QR students pay with and the business details on receipts." },
   { href: "/admin/settings/audit", label: "Change log", blurb: "Every settings change, publish and money correction: who and when." },
 ] as const;

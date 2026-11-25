@@ -19,6 +19,7 @@ import type { ShippingChoiceSnapshot } from "../../domain/analytics";
 import type { CategoryDefinition } from "../../domain/categoryDefinition";
 import { MEASUREMENT_GROUPS, MEASUREMENT_UNITS, type MeasurementGroup, type MeasurementUnit } from "../../domain/enums";
 import type { SettingsInput } from "../../domain/settings";
+import type { WaDirection, WaStatus } from "../../domain/whatsapp";
 import { users } from "./auth";
 import {
   batchShippingMode,
@@ -535,4 +536,63 @@ export const settings = pgTable(
     updatedAt,
   },
   () => [check("settings_singleton", sql`id = 1`)],
+);
+
+// ---- WhatsApp inbox ----------------------------------------------------------
+
+/** One conversation per WhatsApp user. Which customer it is follows from the phone number. */
+export const whatsappChats = pgTable(
+  "whatsapp_chats",
+  {
+    id: uuid().primaryKey().defaultRandom(),
+    /** E.164. Null when the person hides their number behind a username. */
+    phone: text().unique(),
+    /** Meta's business-scoped user id. */
+    userRef: text().unique(),
+    username: text(),
+    profileName: text(),
+    unread: integer().notNull().default(0),
+    lastMessageAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+    /** Opens the 24-hour reply window. */
+    lastInboundAt: timestamp({ withTimezone: true }),
+    createdAt,
+    /** Also bumped by delivery updates: the inbox polls it for changes. */
+    updatedAt,
+  },
+  (t) => [
+    index().on(t.lastMessageAt),
+    index().on(t.updatedAt),
+    check("whatsapp_chats_who", sql`phone IS NOT NULL OR user_ref IS NOT NULL`),
+  ],
+);
+
+export const whatsappMessages = pgTable(
+  "whatsapp_messages",
+  {
+    /** For our own messages, made in the browser so a repeated send is ignored. */
+    id: uuid().primaryKey().defaultRandom(),
+    chatId: uuid()
+      .notNull()
+      .references(() => whatsappChats.id, { onDelete: "cascade" }),
+    /** WhatsApp's message id; null until Meta accepts ours. */
+    waId: text().unique(),
+    direction: text().$type<WaDirection>().notNull(),
+    kind: text().notNull(),
+    body: text(),
+    status: text().$type<WaStatus>().notNull(),
+    error: text(),
+    mediaId: text(),
+    mediaMime: text(),
+    mediaName: text(),
+    /** Our private copy (Meta deletes received files after 7 days). */
+    mediaKey: text(),
+    sentBy: text().references(() => users.id, { onDelete: "set null" }),
+    sentAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+    createdAt,
+  },
+  (t) => [
+    index().on(t.chatId, t.sentAt),
+    check("whatsapp_messages_direction", sql`direction IN ('in', 'out')`),
+    check("whatsapp_messages_status", sql`status IN ('received', 'sending', 'sent', 'delivered', 'read', 'failed')`),
+  ],
 );

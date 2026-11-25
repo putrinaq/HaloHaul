@@ -31,7 +31,7 @@ export const ADMIN_NAV: AdminNavItem[] = [
   { href: "/admin/calendar", label: "Calendar", icon: CalendarDays, blurb: "Cutoffs and pickup windows for the month." },
   { href: "/admin/payment", label: "Payment", icon: CreditCard, mobile: true, blurb: "DuitNow proofs to confirm or reject, and each order's ledger." },
   { href: "/admin/customer", label: "Customer", icon: UserRound, mobile: true, blurb: "Customers with their order history and saved measurements." },
-  { href: "/admin/messages", label: "Messages", icon: MessagesSquare, blurb: "One-tap WhatsApp links with saved message templates." },
+  { href: "/admin/messages", label: "Messages", icon: MessagesSquare, blurb: "WhatsApp chats, with each customer's orders alongside." },
   { href: "/admin/report", label: "Report", icon: ChartColumn, blurb: "Revenue by batch, orders by category and time spent in each status." },
 ];
 
@@ -39,10 +39,11 @@ export const ADMIN_NAV: AdminNavItem[] = [
 export const SETTINGS_NAV: AdminNavItem = { href: "/admin/settings", label: "Settings", icon: Settings, blurb: "Categories, rates, fees and templates." };
 
 /** Which nav item shows which badge count. */
-export type NavCounts = { actions: number; payments: number };
+export type NavCounts = { actions: number; payments: number; messages: number };
 export function badgeFor(item: AdminNavItem, counts: NavCounts): number {
   if (item.href === "/admin") return counts.actions;
   if (item.href === "/admin/payment") return counts.payments;
+  if (item.href === "/admin/messages") return counts.messages;
   return 0;
 }
 

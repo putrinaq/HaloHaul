@@ -1,5 +1,5 @@
 import "server-only";
-import { and, asc, count, desc, eq, inArray, ne, or, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, gt, inArray, ne, or, sql } from "drizzle-orm";
 import {
   batches,
   categories,
@@ -12,6 +12,7 @@ import {
   quotes,
   sourcingOptions,
   users,
+  whatsappChats,
 } from "../../db/schema";
 import type { Db } from "../../db/types";
 import {
@@ -164,12 +165,13 @@ export async function actionBoardPage(db: Db, filter: ActionFilter, page: number
 }
 
 /** Badges on the Actions and Payment nav items. */
-export async function navCounts(db: Db): Promise<{ actions: number; payments: number }> {
-  const [queue, [proofs]] = await Promise.all([
+export async function navCounts(db: Db): Promise<{ actions: number; payments: number; messages: number }> {
+  const [queue, [proofs], [unread]] = await Promise.all([
     listActionQueue(db),
     db.select({ n: count() }).from(payments).where(eq(payments.status, "pending")),
+    db.select({ n: count() }).from(whatsappChats).where(gt(whatsappChats.unread, 0)),
   ]);
-  return { actions: queue.length, payments: proofs?.n ?? 0 };
+  return { actions: queue.length, payments: proofs?.n ?? 0, messages: unread?.n ?? 0 };
 }
 
 /** Everything the admin order page shows, or null if there's no such order. */

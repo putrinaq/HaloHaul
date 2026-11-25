@@ -2,6 +2,7 @@
 // folder, migrated and seeded with demo data, then the production build
 // (`npm run build` first) on port 3200. Everything is thrown away on exit.
 import { spawn } from "node:child_process";
+import http from "node:http";
 import { mkdtempSync, readdirSync, rmSync } from "node:fs";
 import net from "node:net";
 import { tmpdir } from "node:os";
@@ -9,6 +10,7 @@ import path from "node:path";
 
 const DB_PORT = 5544;
 const APP_PORT = 3200;
+const GRAPH_PORT = 3299;
 // On Windows the runner kills this process outright, so clear old runs first.
 for (const d of readdirSync(tmpdir())) if (d.startsWith("halohaul-e2e-")) rmSync(path.join(tmpdir(), d), { recursive: true, force: true });
 const dataDir = mkdtempSync(path.join(tmpdir(), "halohaul-e2e-"));
@@ -28,7 +30,24 @@ const env = {
   R2_ACCESS_KEY_ID: "",
   R2_SECRET_ACCESS_KEY: "",
   R2_BUCKET: "",
+  WHATSAPP_PHONE_NUMBER_ID: "e2e-number",
+  WHATSAPP_BUSINESS_ACCOUNT_ID: "e2e-waba",
+  WHATSAPP_ACCESS_TOKEN: "e2e-token",
+  WHATSAPP_APP_SECRET: "e2e-app-secret",
+  WHATSAPP_VERIFY_TOKEN: "e2e-verify",
+  WHATSAPP_GRAPH_URL: `http://127.0.0.1:${GRAPH_PORT}/v1`,
 };
+// Stands in for Meta's WhatsApp API: accepts every message, has one approved template.
+let sent = 0;
+http
+  .createServer((req, res) => {
+    req.resume();
+    const body = req.url.includes("message_templates")
+      ? { data: [{ name: "order_update", language: "en", status: "APPROVED", parameter_format: "NAMED", components: [{ type: "BODY", text: "Hi {{name}}, there is news about order {{order}}." }] }] }
+      : { messages: [{ id: `wamid.e2e${++sent}` }] };
+    res.writeHead(200, { "content-type": "application/json" }).end(JSON.stringify(body));
+  })
+  .listen(GRAPH_PORT, "127.0.0.1");
 const children = [];
 // Each tool's JS entry point, run with this node (no shell, works on Windows).
 const BIN = {

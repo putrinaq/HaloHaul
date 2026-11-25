@@ -48,7 +48,7 @@ services:
       retries: 10
     mem_limit: 320m
     logging: *logging
-    networks: [internal]
+    networks: [internal, whatsapp]
 
   # One-shot: applies pending migrations, then exits. app/worker wait for it.
   migrate:
@@ -82,7 +82,7 @@ services:
       - "127.0.0.1:3000:3000"
     mem_limit: 384m
     logging: *logging
-    networks: [internal]
+    networks: [internal, whatsapp]
 
   worker:
     image: *worker-image
@@ -101,9 +101,30 @@ services:
     logging: *logging
     networks: [internal]
 
+  # WhatsApp as a linked device, only with COMPOSE_PROFILES=evolution
+  # (docs/WHATSAPP.md). Third-party code holding a WhatsApp login, so: pinned to
+  # an exact image, no ports, none of HaloHaul's secrets, its own database login.
+  evolution:
+    profiles: [evolution]
+    image: evoapicloud/evolution-api:v2.3.8@sha256:b2712c06caf333c7a7ade3bbbdd25f70c32abb74537ec75f786c24c99675deb3
+    restart: unless-stopped
+    env_file:
+      - path: evolution.env
+        required: false
+    depends_on:
+      postgres:
+        condition: service_healthy
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    pids_limit: 200
+    mem_limit: 448m
+    logging: *logging
+    networks: [whatsapp]
+
 volumes:
   pgdata:
 
 networks:
-  # Postgres is reachable only from app/worker/migrate, never from the host.
+  # Postgres is reachable only from app/worker/migrate (and Evolution), never from the host.
   internal:
+  whatsapp:

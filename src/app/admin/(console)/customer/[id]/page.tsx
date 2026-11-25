@@ -7,7 +7,6 @@ import { Badge, Panel, Rows } from "@/components/admin/ui";
 import { getDb } from "@/db/client";
 import { MEASUREMENT_GROUP_LABELS } from "@/domain/categorySchema";
 import { ADMIN_PATH_LABELS, ADMIN_STATUS_LABELS } from "@/domain/labels";
-import { waLink } from "@/domain/messages";
 import { formatMyr } from "@/domain/money";
 import { fmtDate } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -130,10 +129,10 @@ async function Customer({ params }: { params: PageProps<"/admin/customer/[id]">[
             {!anonymised ? (
               <div className="mt-3 flex flex-col gap-2">
                 {c.profile?.phone ? (
-                  <a href={waLink(c.profile.phone, `Hi ${c.user.name.split(/\s+/)[0]}, this is HaloHaul.`)} target="_blank" rel="noopener noreferrer" className="admin-btn-secondary justify-start">
+                  <Link href={`/admin/messages?customer=${c.user.id}`} className="admin-btn-secondary justify-start">
                     <MessageCircle className="size-4" aria-hidden />
-                    WhatsApp
-                  </a>
+                    Chat on WhatsApp
+                  </Link>
                 ) : null}
                 <a href={`mailto:${c.user.email}`} className="admin-btn-secondary justify-start">
                   <Mail className="size-4" aria-hidden />

@@ -9,6 +9,7 @@ import { getCatalog } from "../data/categories";
 import { UserError } from "../errors";
 import { isOwnPhotoKey, thumbKey } from "../photos";
 import type { ObjectStore } from "../storage";
+import { deleteChatsOf } from "../whatsapp/inbox";
 
 // Customer pages. Personal data lives here, so every write is audit-logged.
 
@@ -108,11 +109,12 @@ export async function updateCustomerMeasurements(db: Db, actorId: string, id: st
 
 /**
  * The PDPA delete: removes everything that identifies the student (name,
- * email, phone, campus, measurements, order details, remarks, photos) and
+ * email, phone, campus, measurements, order details, remarks, photos,
+ * WhatsApp chats) and
  * their ability to sign in, but keeps orders and the ledger for the books.
  */
 export async function anonymiseCustomer(db: Db, actorId: string, id: string, store: ObjectStore | null) {
-  const photos = await db.transaction(async (tx) => {
+  const { photos, chatFiles } = await db.transaction(async (tx) => {
     const [u] = await tx.select().from(users).where(and(eq(users.id, id), eq(users.role, "student"))).for("update");
     if (!u) throw new UserError("That customer no longer exists.");
     const [{ open }] = await tx
@@ -133,6 +135,7 @@ export async function anonymiseCustomer(db: Db, actorId: string, id: string, sto
       .update(users)
       .set({ name: "Deleted customer", email: `deleted-${id}@anonymised.invalid`, emailVerified: false, image: null })
       .where(eq(users.id, id));
+    const chatFiles = await deleteChatsOf(tx, id);
     await tx.delete(sessions).where(eq(sessions.userId, id));
     await tx.delete(accounts).where(eq(accounts.userId, id));
     await tx.delete(twoFactors).where(eq(twoFactors.userId, id));
@@ -144,8 +147,9 @@ export async function anonymiseCustomer(db: Db, actorId: string, id: string, sto
         set: { displayName: "Deleted customer", phone: null, campus: null, savedMeasurements: {}, internalNotes: null, anonymisedAt: new Date() },
       });
     await audit(tx, { actorId, action: "customer.anonymise", entityType: "customer", entityId: id, summary: `Anonymised a customer (${theirOrders.length} orders kept for accounting)` });
-    return keys;
+    return { photos: keys, chatFiles };
   });
-  // After the commit: remove their photos from storage (best effort).
+  // After the commit: remove their photos and chat files from storage (best effort).
   if (store) for (const k of photos) await Promise.all([store.delete(k), store.delete(thumbKey(k))]).catch(() => {});
+  if (store) for (const k of chatFiles) await store.delete(k).catch(() => {});
 }

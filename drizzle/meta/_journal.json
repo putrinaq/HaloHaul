@@ -78,6 +78,13 @@
       "when": 1793370185785,
       "tag": "0010_order_drafts",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1795600281208,
+      "tag": "0011_whatsapp_inbox",
+      "breakpoints": true
     }
   ]
 }

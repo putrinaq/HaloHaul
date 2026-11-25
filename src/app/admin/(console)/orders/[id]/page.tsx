@@ -1,4 +1,4 @@
-import { ArrowLeft, Clock, ExternalLink, Mail, ShieldAlert, Star } from "lucide-react";
+import { ArrowLeft, Clock, ExternalLink, Mail, MessagesSquare, ShieldAlert, Star } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -308,7 +308,17 @@ async function OrderDetail({ params }: { params: PageProps<"/admin/orders/[id]">
               {customer.campus ?? "No campus"} · {customer.pastOrders} other order{customer.pastOrders === 1 ? "" : "s"}
             </p>
             <div className="mt-3 flex flex-col gap-2">
-              {customer.phone ? <WhatsAppButton links={waLinks} /> : <p className="text-white/50">No phone number on file.</p>}
+              {customer.phone ? (
+                <>
+                  <Link href={`/admin/messages?customer=${customer.id}`} className="admin-btn-secondary justify-start">
+                    <MessagesSquare className="size-4 shrink-0" aria-hidden />
+                    Open chat
+                  </Link>
+                  <WhatsAppButton links={waLinks} />
+                </>
+              ) : (
+                <p className="text-white/50">No phone number on file.</p>
+              )}
               <a href={`mailto:${customer.email}`} className="admin-btn-secondary justify-start">
                 <Mail className="size-4 shrink-0" aria-hidden />
                 <span className="truncate">{customer.email}</span>

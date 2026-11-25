@@ -44,6 +44,7 @@ const SECTIONS: LegalSection[] = [
           <strong>Photos:</strong> pictures you upload, such as screenshots for a photo search and payment receipts.
           Receipts can show your name and bank; we use them only to confirm payment.
         </li>
+        <li><strong>WhatsApp messages:</strong> what you send us on WhatsApp, including photos and voice messages, and our replies.</li>
         <li><strong>Payments:</strong> amounts, dates and references. We never see or store your bank login or card details.</li>
         <li><strong>Technical:</strong> for security, your sign-in sessions record your IP address and browser type.</li>
       </ul>
@@ -103,7 +104,7 @@ const SECTIONS: LegalSection[] = [
           </li>
           <li>
             <strong>Service providers that run the site for us:</strong> our hosting provider, Cloudflare (photo
-            storage) and Resend (email delivery). They process data only on our instructions.
+            storage), Resend (email delivery) and Meta (WhatsApp messages). They process data only on our instructions.
           </li>
           <li><strong>Authorities:</strong> when the law requires it.</li>
         </ul>

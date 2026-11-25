@@ -21,6 +21,19 @@ const envSchema = z.object({
   R2_ACCESS_KEY_ID: z.string().optional(),
   R2_SECRET_ACCESS_KEY: z.string().optional(),
   R2_BUCKET: z.string().optional(),
+
+  /** Evolution API: WhatsApp as a linked device (docs/WHATSAPP.md). Wins over Meta's API when both are set. */
+  EVOLUTION_API_URL: z.string().optional(),
+  EVOLUTION_API_KEY: z.string().optional(),
+  EVOLUTION_WEBHOOK_URL: z.url().default("http://app:3000/api/whatsapp/evolution"),
+
+  /** WhatsApp Cloud API (docs/WHATSAPP.md). Until all are set, Messages opens WhatsApp instead. */
+  WHATSAPP_PHONE_NUMBER_ID: z.string().optional(),
+  WHATSAPP_BUSINESS_ACCOUNT_ID: z.string().optional(),
+  WHATSAPP_ACCESS_TOKEN: z.string().optional(),
+  WHATSAPP_APP_SECRET: z.string().optional(),
+  WHATSAPP_VERIFY_TOKEN: z.string().optional(),
+  WHATSAPP_GRAPH_URL: z.url().default("https://graph.facebook.com/v26.0"),
 });
 
 export type Env = z.infer<typeof envSchema>;
