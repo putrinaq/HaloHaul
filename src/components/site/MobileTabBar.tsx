@@ -21,7 +21,7 @@ const ADMIN_TAB = { href: "/admin", label: "Admin", icon: LayoutDashboard, match
 const HIDDEN_ON = ["/order/new", "/sign-in", "/admin"];
 
 /**
- * App-style bottom navigation for phones (hidden from md up, where the header
+ * App-style bottom navigation for signed-in people on phones (hidden from md up, where the header
  * has room). It sits above the home indicator, steps aside while the on-screen
  * keyboard is open, and reserves its own space at the end of the page so it
  * never covers the footer. Rendered inside <Suspense> in the root layout,

@@ -1,8 +1,11 @@
 import { getSessionUser } from "@/server/session";
 import { MobileTabBar } from "./MobileTabBar";
 
-/** Reads the session (so it renders inside <Suspense>) to give admins their own tab. */
+/**
+ * Signed-in people only: visitors use the header's menu. Reads the session, so
+ * it renders inside <Suspense>; admins get their own tab.
+ */
 export async function MobileTabBarForUser() {
   const user = await getSessionUser();
-  return <MobileTabBar admin={user?.role === "admin"} />;
+  return user ? <MobileTabBar admin={user.role === "admin"} /> : null;
 }

@@ -8,7 +8,7 @@ export function Hero() {
   return (
     // Content is centred, so spare height on tall phones splits evenly above and
     // below instead of piling up over the headline. The bottom padding below md
-    // keeps it clear of the mobile tab bar.
+    // keeps it clear of a signed-in person's tab bar.
     <section className="relative isolate flex min-h-svh items-center overflow-hidden pt-28 pb-28 sm:pt-36 md:pb-28">
       {/* Parallax: the photo travels slower than the page. */}
       <div data-scroll-defer data-scroll-speed="-0.3" className="absolute inset-0 -z-20">

@@ -3,6 +3,7 @@ import { Suspense } from "react";
 import { Logo } from "@/components/brand/Logo";
 import { cn } from "@/lib/utils";
 import { HeaderShell } from "./HeaderShell";
+import { MobileMenu } from "./MobileMenu";
 import { NavUser } from "./NavUser";
 
 const links: { href: string; label: string; className?: string }[] = [
@@ -15,9 +16,9 @@ const links: { href: string; label: string; className?: string }[] = [
 
 /**
  * Floating glass nav from the home design. `overlay` sits on top of the hero.
- * On phones the bottom tab bar (MobileTabBar) carries Shipping, Orders,
- * Account and the order button, so the pill keeps only the logo, How it works
- * and Sign In, each with a 44px tap target.
+ * On phones the pages are in the menu, so the pill keeps only the logo, Sign In
+ * (or the cart) and the menu button, each with a 44px tap target. Signed-in
+ * people also have the bottom tab bar (MobileTabBar).
  */
 export function SiteHeader({ overlay = false }: { overlay?: boolean }) {
   return (
@@ -44,13 +45,6 @@ export function SiteHeader({ overlay = false }: { overlay?: boolean }) {
             ))}
           </div>
           <div className="ml-auto flex items-center gap-1 sm:gap-4">
-            <Link
-              href="/how-it-works"
-              className="nav-item-intro flex min-h-11 items-center px-2 text-sm text-white/80 active:text-white md:hidden"
-              style={{ "--d": 1 }}
-            >
-              How it works
-            </Link>
             <div className="nav-item-intro" style={{ "--d": 3 }}>
               <Suspense fallback={<span className="block w-16" />}>
                 <NavUser />
@@ -63,6 +57,9 @@ export function SiteHeader({ overlay = false }: { overlay?: boolean }) {
             >
               Place an order
             </Link>
+            <div className="nav-item-intro md:hidden" style={{ "--d": 4 }}>
+              <MobileMenu />
+            </div>
           </div>
         </nav>
       </div>
