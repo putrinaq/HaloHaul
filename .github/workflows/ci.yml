@@ -83,9 +83,27 @@ jobs:
           KNOWN_HOSTS: ${{ secrets.VPS_KNOWN_HOSTS }}
         run: |
           umask 077
-          printf '%s\n' "$KEY" > "$RUNNER_TEMP/key"
-          printf '%s\n' "$KNOWN_HOSTS" > "$RUNNER_TEMP/known_hosts"
+          # Says which secret looks wrong, without printing any.
+          bad=0
+          check() { if ! eval "$2"; then echo "::error::$1"; bad=1; fi; }
+          check "VPS_HOST should be just the address" '[[ "$HOST" =~ ^[A-Za-z0-9.-]+$ ]]'
+          check "VPS_PORT should be just a number" '[[ "$PORT" =~ ^[0-9]+$ ]]'
+          check "VPS_USER should be just the name" '[[ "$REMOTE_USER" =~ ^[a-z][a-z0-9_-]*$ ]]'
+          check "VPS_KNOWN_HOSTS should start with [VPS_HOST]:VPS_PORT" '[[ "$KNOWN_HOSTS" == "[$HOST]:$PORT ssh-ed25519 "* ]]'
+          printf '%s\n' "$KEY" | tr -d '\r' > "$RUNNER_TEMP/key"
           trap 'rm -f "$RUNNER_TEMP/key"' EXIT
-          ssh -i "$RUNNER_TEMP/key" -p "${PORT:-22}" -o IdentitiesOnly=yes -o BatchMode=yes \
-            -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$RUNNER_TEMP/known_hosts" \
-            "$REMOTE_USER@$HOST" "$GITHUB_SHA"
+          check "VPS_SSH_KEY is not a complete private key" 'ssh-keygen -y -P "" -f "$RUNNER_TEMP/key" > /dev/null 2>&1'
+          [ "$bad" = 0 ] || exit 1
+
+          printf '%s\n' "$KNOWN_HOSTS" > "$RUNNER_TEMP/known_hosts"
+          # 255 is ssh itself failing (say, the network); anything else is the script's answer.
+          for try in 1 2 3; do
+            code=0
+            ssh -i "$RUNNER_TEMP/key" -p "$PORT" -o IdentitiesOnly=yes -o BatchMode=yes -o ConnectTimeout=20 \
+              -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$RUNNER_TEMP/known_hosts" \
+              "$REMOTE_USER@$HOST" "$GITHUB_SHA" || code=$?
+            [ "$code" = 255 ] || exit "$code"
+            echo "Could not connect (try $try of 3)"
+            sleep 10
+          done
+          exit 255
