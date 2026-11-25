@@ -9,21 +9,14 @@ const POLL_MS = 4000;
 /** Reloads the inbox when something new arrives. Quiet while the tab is hidden. */
 export function LiveInbox({ version }: { version: string }) {
   const router = useRouter();
-  const seen = useRef(version);
-  useEffect(() => {
-    seen.current = version;
-  }, [version]);
-
   const check = useEffectEvent(async () => {
     if (document.hidden) return;
     try {
       const r = await fetch("/api/admin/whatsapp/version", { cache: "no-store" });
       if (!r.ok) return;
       const { version: latest } = (await r.json()) as { version: string };
-      if (latest !== seen.current) {
-        seen.current = latest;
-        router.refresh();
-      }
+      // Until a reload brings the new version, so one that fails is tried again.
+      if (latest !== version) router.refresh();
     } catch {
       // Offline for a moment: the next check will catch up.
     }

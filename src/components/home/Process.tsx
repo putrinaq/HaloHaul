@@ -1,25 +1,26 @@
 import { SectionHeading } from "./SectionHeading";
+import { asset } from "@/lib/asset";
 
 const STEPS = [
   {
     title: "Submit a request",
     body: "A link, a photo, or a description. The form adapts to what you have.",
-    image: "/images/step-1.webp",
+    image: asset("/images/step-1.webp"),
   },
   {
     title: "Receive a quote",
     body: "We research the product, verify the seller, and return a clear breakdown — product, service fee and shipping, all separate.",
-    image: "/images/step-2.webp",
+    image: asset("/images/step-2.webp"),
   },
   {
     title: "Approve and pay",
     body: "Review every line before paying. Nothing is purchased without your explicit approval.",
-    image: "/images/step-3.webp",
+    image: asset("/images/step-3.webp"),
   },
   {
     title: "It arrives in Malaysia",
     body: "We handle the purchase, forwarding and consolidation, then hand it over on campus.",
-    image: "/images/step-4.webp",
+    image: asset("/images/step-4.webp"),
   },
 ];
 

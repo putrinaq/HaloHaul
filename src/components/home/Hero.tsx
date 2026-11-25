@@ -2,6 +2,7 @@ import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 import { PLATFORM_LABELS } from "@/domain/labels";
 import { SUPPORTED_PLATFORMS } from "@/domain/links";
+import { asset } from "@/lib/asset";
 
 export function Hero() {
   return (
@@ -12,9 +13,9 @@ export function Hero() {
       {/* Parallax: the photo travels slower than the page. */}
       <div data-scroll-defer data-scroll-speed="-0.3" className="absolute inset-0 -z-20">
         <picture className="block size-full">
-          <source media="(max-width: 640px)" srcSet="/images/hero-mobile.webp" />
+          <source media="(max-width: 640px)" srcSet={asset("/images/hero-mobile.webp")} />
           <img
-            src="/images/hero.webp"
+            src={asset("/images/hero.webp")}
             alt=""
             className="intro-zoom size-full object-cover object-center"
             fetchPriority="high"

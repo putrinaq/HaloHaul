@@ -1,5 +1,6 @@
 import { ArrowRight } from "lucide-react";
 import Link from "next/link";
+import { asset } from "@/lib/asset";
 
 /** Final call to action above the footer, over the meadow photo. */
 export function ClosingCta() {
@@ -11,7 +12,7 @@ export function ClosingCta() {
       >
         <div data-scroll-defer data-scroll-speed="-0.08" className="absolute inset-x-0 top-[-20%] -z-20 h-[140%]">
           {/* eslint-disable-next-line @next/next/no-img-element -- pre-optimised static image */}
-          <img src="/images/meadow.webp" alt="" loading="lazy" className="size-full object-cover" />
+          <img src={asset("/images/meadow.webp")} alt="" loading="lazy" className="size-full object-cover" />
         </div>
         <div className="absolute inset-0 -z-10 bg-linear-to-b from-black/70 via-black/45 to-black/75" />
         <h2 data-scroll-defer className="display line-mask text-4xl leading-[1.05] sm:text-6xl" style={{ "--d": 2 }}>

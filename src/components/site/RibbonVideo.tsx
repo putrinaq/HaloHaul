@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import { asset } from "@/lib/asset";
 import { cn } from "@/lib/utils";
 
 /**
@@ -52,12 +53,12 @@ export function RibbonVideo({ className }: { className?: string }) {
         playsInline
         preload="metadata"
         disablePictureInPicture
-        poster="/images/ribbon-poster.webp"
+        poster={asset("/images/ribbon-poster.webp")}
         // Narrow screens crop the sides; frame the colourful right half there.
         className="absolute inset-0 size-full object-cover object-[78%_20%] sm:object-[50%_20%]"
       >
-        <source src="/videos/ribbon.webm" type="video/webm" />
-        <source src="/videos/ribbon.mp4" type="video/mp4" />
+        <source src={asset("/videos/ribbon.webm")} type="video/webm" />
+        <source src={asset("/videos/ribbon.mp4")} type="video/mp4" />
       </video>
     </div>
   );

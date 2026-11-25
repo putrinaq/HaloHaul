@@ -4,6 +4,7 @@ import { Cursor } from "@/components/motion/Cursor";
 import { Scrollbar } from "@/components/motion/Scrollbar";
 import { SmoothScroll } from "@/components/motion/SmoothScroll";
 import { MobileTabBarForUser } from "@/components/site/MobileTabBarForUser";
+import { ASSET_ORIGIN } from "@/lib/asset";
 import { cn } from "@/lib/utils";
 import { Suspense } from "react";
 import "locomotive-scroll/locomotive-scroll.css";
@@ -39,6 +40,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html lang="en-MY" className={cn("h-full antialiased", sans.variable, serif.variable)}>
       <body className="flex min-h-full flex-col">
+        <link rel="preconnect" href={ASSET_ORIGIN} />
         <SmoothScroll />
         {children}
         <Suspense fallback={null}>

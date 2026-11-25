@@ -1,25 +1,26 @@
 import { ArrowUpRight } from "lucide-react";
 import Link from "next/link";
 import { SectionHeading } from "./SectionHeading";
+import { asset } from "@/lib/asset";
 
 const CARDS = [
   {
     path: "url",
     title: "You have a link",
     body: "Drop in any URL from a supported platform. We verify the seller and prepare your quote.",
-    image: "/images/start-link.webp",
+    image: asset("/images/start-link.webp"),
   },
   {
     path: "reverse_search",
     title: "You have a photo",
     body: "Upload a screenshot from TikTok, RedNote, Pinterest, or anywhere. We find the closest match.",
-    image: "/images/start-photo.webp",
+    image: asset("/images/start-photo.webp"),
   },
   {
     path: "consultation",
     title: "You're not sure",
     body: "Share your budget and what you need. We research the options and recommend what to buy.",
-    image: "/images/start-consult.webp",
+    image: asset("/images/start-consult.webp"),
   },
 ] as const;
 

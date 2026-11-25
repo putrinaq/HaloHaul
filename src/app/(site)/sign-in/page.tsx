@@ -2,6 +2,7 @@ import { MapPin, ReceiptText, ShieldCheck } from "lucide-react";
 import type { Metadata } from "next";
 import { Suspense } from "react";
 import { SignInForm } from "./SignInForm";
+import { asset } from "@/lib/asset";
 
 export const metadata: Metadata = { title: "Sign in" };
 
@@ -107,7 +108,7 @@ function Backdrop() {
     <div aria-hidden className="absolute inset-x-0 -top-40 bottom-0 -z-10 overflow-hidden">
       {/* eslint-disable-next-line @next/next/no-img-element -- pre-optimised 65 KB static image */}
       <img
-        src="/images/sign-in.webp"
+        src={asset("/images/sign-in.webp")}
         alt=""
         fetchPriority="high"
         decoding="async"
