@@ -108,8 +108,8 @@ pins `IMAGE_TAG` to the commit SHA and runs `docker compose up -d`. The one-shot
 `migrate` service applies migrations before `app` and `worker` start. Nothing is
 built on the server.
 
-Required repository secrets: `VPS_HOST`, `VPS_USER`, `VPS_SSH_KEY`, and
-optionally `VPS_PORT`. The VPS needs `/opt/halohaul/.env` (from `.env.example`)
+Putting them live is off until you turn it on: see [docs/DEPLOY.md](docs/DEPLOY.md).
+The VPS needs `/opt/halohaul/.env` (from `.env.example`)
 and `backup.env` (from `backup.env.example`).
 
 First-time server prep: `sudo bash scripts/setup-swap.sh`, and install Docker.

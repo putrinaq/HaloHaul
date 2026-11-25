@@ -21,6 +21,8 @@ test("bottom nav and More reach every section", async ({ page }) => {
 test("order page pins the next step and drawers fill the screen", async ({ page }) => {
   await page.goto("/admin");
   await page.getByRole("article").filter({ hasText: "Polka dot dress" }).getByRole("link", { name: /^Open order/ }).click();
+  // The board has the same button: wait until it's gone.
+  await expect(page).toHaveURL(/\/admin\/orders\/\d+/);
   const action = page.getByRole("button", { name: "Mark fee paid" }).filter({ visible: true });
   await expect(action).toHaveCount(1);
   const box = (await action.boundingBox())!;

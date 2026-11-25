@@ -37,9 +37,10 @@ test.describe("signed out", () => {
     const menu = page.getByRole("dialog", { name: "Menu" });
     // Opens on the section you're in.
     await expect(menu.getByRole("link", { name: "Pricing" })).toHaveAttribute("aria-current", "page");
-    await expect(menu.getByRole("link", { name: "Shipping schedule" })).toHaveCount(0);
-    await menu.getByRole("button", { name: "Browse" }).click();
+    await menu.getByRole("button", { name: "Legal" }).click();
     await expect(menu.getByRole("link", { name: "Pricing" })).toBeHidden();
+    await expect(menu.getByRole("link", { name: "Privacy Policy" })).toBeVisible();
+    // Not in a section: always one tap away.
     await menu.getByRole("link", { name: "Shipping schedule" }).click();
     await expect(page).toHaveURL(/\/shipping$/);
     await expect(menu).toBeHidden();

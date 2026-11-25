@@ -9,7 +9,10 @@ import { Logo } from "@/components/brand/Logo";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { cn } from "@/lib/utils";
 
-const GROUPS = [
+type MenuLink = { href: string; label: string };
+
+/** Top to bottom: a section that folds away, or a plain link. */
+const MENU: Array<MenuLink | { title: string; links: MenuLink[] }> = [
   {
     title: "Ordering",
     links: [
@@ -18,13 +21,8 @@ const GROUPS = [
       { href: "/faq", label: "FAQ" },
     ],
   },
-  {
-    title: "Browse",
-    links: [
-      { href: "/catalogue", label: "What people bought" },
-      { href: "/shipping", label: "Shipping schedule" },
-    ],
-  },
+  { href: "/catalogue", label: "What people bought" },
+  { href: "/shipping", label: "Shipping schedule" },
   {
     title: "Legal",
     links: [
@@ -67,7 +65,7 @@ function MenuBody({ close }: { close: () => void }) {
     if (pathname !== openedOn) close();
   }, [pathname, openedOn, close]);
 
-  const current = GROUPS.find((g) => g.links.some((l) => l.href === pathname)) ?? GROUPS[0];
+  const open = MENU.find((m) => "links" in m && m.links.some((l) => l.href === pathname));
   return (
     <>
       <div className="flex items-center justify-between border-b border-white/10 py-3 pr-3 pl-5 pt-[max(0.75rem,env(safe-area-inset-top))]">
@@ -81,31 +79,46 @@ function MenuBody({ close }: { close: () => void }) {
         </Dialog.Close>
       </div>
       <nav aria-label="Site" className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-2">
-        <Accordion type="single" collapsible defaultValue={current.title}>
-          {GROUPS.map((g) => (
-            <AccordionItem key={g.title} value={g.title} className="border-white/10">
-              <AccordionTrigger className="min-h-13 items-center py-3 text-base text-white hover:no-underline">{g.title}</AccordionTrigger>
-              <AccordionContent>
-                <ul className="space-y-1">
-                  {g.links.map((l) => (
-                    <li key={l.href}>
-                      <Link
-                        href={l.href}
-                        onClick={close}
-                        aria-current={l.href === pathname ? "page" : undefined}
-                        className={cn(
-                          "flex min-h-11 items-center rounded-xl px-3 text-[15px] no-underline! transition-colors active:bg-white/10",
-                          l.href === pathname ? "bg-white/8 text-white" : "text-white/70",
-                        )}
-                      >
-                        {l.label}
-                      </Link>
-                    </li>
-                  ))}
-                </ul>
-              </AccordionContent>
-            </AccordionItem>
-          ))}
+        <Accordion type="single" collapsible defaultValue={open && "title" in open ? open.title : "Ordering"}>
+          {MENU.map((m) =>
+            "href" in m ? (
+              <Link
+                key={m.href}
+                href={m.href}
+                onClick={close}
+                aria-current={m.href === pathname ? "page" : undefined}
+                className={cn(
+                  "flex min-h-13 items-center border-b border-white/10 text-base font-medium transition-colors active:text-white",
+                  m.href === pathname ? "text-sky-300" : "text-white",
+                )}
+              >
+                {m.label}
+              </Link>
+            ) : (
+              <AccordionItem key={m.title} value={m.title} className="border-white/10">
+                <AccordionTrigger className="min-h-13 items-center py-3 text-base text-white hover:no-underline">{m.title}</AccordionTrigger>
+                <AccordionContent>
+                  <ul className="space-y-1">
+                    {m.links.map((l) => (
+                      <li key={l.href}>
+                        <Link
+                          href={l.href}
+                          onClick={close}
+                          aria-current={l.href === pathname ? "page" : undefined}
+                          className={cn(
+                            "flex min-h-11 items-center rounded-xl px-3 text-[15px] no-underline! transition-colors active:bg-white/10",
+                            l.href === pathname ? "bg-white/8 text-white" : "text-white/70",
+                          )}
+                        >
+                          {l.label}
+                        </Link>
+                      </li>
+                    ))}
+                  </ul>
+                </AccordionContent>
+              </AccordionItem>
+            ),
+          )}
         </Accordion>
       </nav>
       <div className="border-t border-white/10 px-5 pt-4 pb-[max(1.25rem,env(safe-area-inset-bottom))]">

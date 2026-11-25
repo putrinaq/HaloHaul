@@ -66,3 +66,5 @@ backup.env
 /test-results/
 /playwright-report/
 /evolution.env
+/backups/
+/.deploy.lock
