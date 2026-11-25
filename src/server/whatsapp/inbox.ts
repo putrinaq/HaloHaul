@@ -14,6 +14,9 @@ import type { Gateway } from "./gateway";
 
 type Chat = typeof whatsappChats.$inferSelect;
 
+/** WhatsApp's times are whole seconds: within one, messages go in the order they reached us. */
+const newestFirst = [sql`date_trunc('second', ${whatsappMessages.sentAt}) desc`, desc(whatsappMessages.createdAt)];
+
 // ---- receiving ----------------------------------------------------------------
 
 /** The person's chat, matched by Meta's user id or their number, made if new. */
@@ -229,7 +232,7 @@ export async function markRead(db: Db, gateway: Gateway | null, chatId: string) 
     .select({ waId: whatsappMessages.waId })
     .from(whatsappMessages)
     .where(and(eq(whatsappMessages.chatId, chatId), eq(whatsappMessages.direction, "in"), isNotNull(whatsappMessages.waId)))
-    .orderBy(desc(whatsappMessages.sentAt))
+    .orderBy(...newestFirst)
     .limit(1);
   if (last?.waId) await gateway.read(cleared[0], last.waId).catch(() => {});
 }
@@ -313,7 +316,7 @@ export async function listChats(db: Db, q: string): Promise<ChatListItem[]> {
           .selectDistinctOn([whatsappMessages.chatId], { chatId: whatsappMessages.chatId, kind: whatsappMessages.kind, body: whatsappMessages.body, direction: whatsappMessages.direction })
           .from(whatsappMessages)
           .where(inArray(whatsappMessages.chatId, ids))
-          .orderBy(whatsappMessages.chatId, desc(whatsappMessages.sentAt))
+          .orderBy(whatsappMessages.chatId, ...newestFirst)
       : [],
     phones.length
       ? db.select({ phone: customerProfiles.phone, name: customerProfiles.displayName }).from(customerProfiles).where(inArray(customerProfiles.phone, phones))
@@ -359,7 +362,7 @@ export async function getThread(db: Db, target: SendTarget) {
   } else return null;
 
   const [messages, people] = await Promise.all([
-    chat ? db.select().from(whatsappMessages).where(eq(whatsappMessages.chatId, chat.id)).orderBy(desc(whatsappMessages.sentAt), desc(whatsappMessages.createdAt)).limit(THREAD_LIMIT) : [],
+    chat ? db.select().from(whatsappMessages).where(eq(whatsappMessages.chatId, chat.id)).orderBy(...newestFirst).limit(THREAD_LIMIT) : [],
     // Numbers are typed in by students, so more than one account can have the same one.
     phone
       ? db

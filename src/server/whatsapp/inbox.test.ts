@@ -187,6 +187,18 @@ describe("reading", () => {
     expect(await listChats(db, "100%")).toEqual([]);
   });
 
+  it("puts a reply after our message when both fall in the same second", async () => {
+    const second = Math.floor(Date.now() / 1000) * 1000;
+    await receive(incoming({ body: "First", at: new Date(second - 5000) }));
+    const id = (await theChat()).id;
+    const ours = randomUUID();
+    await sendText(db, meta, ADMIN, { chatId: id, customerId: null, id: ours, text: "Ours" });
+    await db.update(whatsappMessages).set({ sentAt: new Date(second + 900) }).where(eq(whatsappMessages.id, ours));
+    await receive(incoming({ body: "Reply", at: new Date(second) }));
+    expect((await getThread(db, { chatId: id, customerId: null }))?.messages.map((m) => m.body)).toEqual(["First", "Ours", "Reply"]);
+    expect((await listChats(db, ""))[0]).toMatchObject({ preview: "Reply", fromUs: false });
+  });
+
   it("opens a thread by chat or by customer, and flags a shared number", async () => {
     await receive(incoming());
     const id = (await theChat()).id;
