@@ -48,8 +48,29 @@ test("search, pick with the keyboard, and the measurement fields follow the cate
   await page.getByRole("button", { name: "Continue" }).click();
   await expect(page.getByText(/Ring inner circumference.*required/i)).toBeVisible();
   await page.getByLabel(/Ring inner circumference/).fill("52");
+  // So is the option: colour, size or version.
+  await page.getByRole("button", { name: "Continue" }).click();
+  await expect(page.getByText(/Tell us the colour, size or version/)).toBeVisible();
+  await page.getByLabel(/^Option/).fill("Silver");
   await page.getByRole("button", { name: "Continue" }).click();
   await expect(page.getByRole("heading", { name: "Delivery" })).toBeVisible();
+});
+
+test("a photo search takes a link from any website", async ({ page }) => {
+  await page.goto("/order/new?path=url");
+  await page.locator("#productUrl").fill("https://www.pinterest.com/pin/875809458808665144/");
+  await page.locator("#itemName").fill("Satin midi dress");
+  await page.getByRole("button", { name: "Continue" }).click();
+  // Bought from the link itself, so only shops we buy from; it says where else to go.
+  await expect(page.getByText(/Choose "I have a photo" and paste the link there/)).toBeVisible();
+
+  await page.goto("/order/new?path=reverse_search");
+  await page.locator("#productUrl").fill("https://www.pinterest.com/pin/875809458808665144/");
+  await expect(page.getByText("Link added")).toBeVisible();
+  await page.locator("#itemName").fill("Satin midi dress");
+  await page.getByText("New only").click();
+  await page.getByRole("button", { name: "Continue" }).click();
+  await expect(page.getByRole("heading", { name: "Details" })).toBeVisible();
 });
 
 test("continuing with no category asks for one, and picking one clears the error", async ({ page }) => {

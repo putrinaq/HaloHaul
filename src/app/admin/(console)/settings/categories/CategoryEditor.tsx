@@ -21,6 +21,7 @@ import { useToast } from "@/components/admin/Toast";
 import { Badge, Field } from "@/components/admin/ui";
 import { definitionSchema, FIELD_KINDS, keyOf, type CategoryDefinition, type DefinitionDiff, type FieldDef, type FieldKind } from "@/domain/categoryDefinition";
 import { fieldName, resolveFields, validateDetails, validateOption, type MeasurementDef } from "@/domain/categorySchema";
+import { DEFAULT_OPTION_ERROR, DEFAULT_OPTION_LABEL } from "@/domain/orderInput";
 import type { getCategoryAdmin } from "@/server/admin/categories";
 import { cn } from "@/lib/utils";
 import { CategoryInfoForm, type CategoryInfoValues } from "./CategoryInfoForm";
@@ -385,7 +386,7 @@ function OptionLine({ def, onChange }: { def: CategoryDefinition; onChange: (d: 
           </label>
         </div>
       ) : (
-        <p className="text-sm text-white/50">Students see “Option — colour, size, version (optional)”.</p>
+        <p className="text-sm text-white/50">Students see “{DEFAULT_OPTION_LABEL}”, and must fill it in.</p>
       )}
     </section>
   );
@@ -407,7 +408,8 @@ function Preview({ def, library, imageUrls }: { def: CategoryDefinition; library
   const check = form.handleSubmit((data) => {
     form.clearErrors();
     const r = validateDetails(fields, data.details);
-    const optionError = validateOption(def, data.variantText);
+    const optionError =
+      validateOption(def, data.variantText) ?? (!def.option && !data.variantText.trim() ? DEFAULT_OPTION_ERROR : null);
     if (optionError) form.setError("variantText", { message: optionError });
     if (!r.ok) for (const [k, m] of Object.entries(r.fieldErrors)) form.setError(`details.${k}`, { message: m });
     setResult(r.ok && !optionError ? `Valid: ${JSON.stringify(r.value)}` : null);
@@ -430,7 +432,7 @@ function Preview({ def, library, imageUrls }: { def: CategoryDefinition; library
           idPrefix="preview"
         />
         <Field
-          label={def.option ? `${def.option.label}${def.option.required ? "" : " — optional"}` : "Option — colour, size, version (optional)"}
+          label={def.option ? `${def.option.label}${def.option.required ? "" : " — optional"}` : DEFAULT_OPTION_LABEL}
           htmlFor="preview-variant"
           error={form.formState.errors.variantText?.message}
         >

@@ -1,14 +1,17 @@
 import type { PathType, Platform } from "./enums";
 import { PLATFORM_LABELS } from "./labels";
 
-// Link validation for the "You have a link" path. Only supported Chinese
-// platforms are accepted. RedNote and Douyin links that point at a content
-// post (not a product page) are routed to reverse search.
+// Link validation. "I have a link" is bought from that page, so it must be on a
+// supported Chinese platform; RedNote and Douyin links that point at a content
+// post (not a product page) are routed to reverse search. On a photo search or
+// "not sure", the link only shows where the student saw the item, so any website
+// (Pinterest, House of CB, Instagram…) is fine.
 
 export type LinkKind = "product" | "content_post";
 
 export type LinkResult =
-  | { ok: true; url: string; platform: Exclude<Platform, "other">; kind: LinkKind }
+  /** `platform` is "other" for a website that isn't one we buy from. */
+  | { ok: true; url: string; platform: Platform; kind: LinkKind }
   | { ok: false; error: string };
 
 const MAX_URL_LENGTH = 2048;
@@ -96,9 +99,10 @@ export function linkKind(platform: Platform, url: URL): LinkKind {
   return "product";
 }
 
-export function validateProductLink(input: string): LinkResult {
+/** Any web link. The server never opens it; it's shown to the student and admin as a link. */
+export function validateLink(input: string): LinkResult {
   const raw = extractUrl(input.trim());
-  if (!raw) return { ok: false, error: "Paste the product link (it starts with https://)." };
+  if (!raw) return { ok: false, error: "Paste the link (it starts with https://)." };
   if (raw.length > MAX_URL_LENGTH) return { ok: false, error: "That link is too long." };
 
   let url: URL;
@@ -112,15 +116,31 @@ export function validateProductLink(input: string): LinkResult {
   }
   if (url.username || url.password) return { ok: false, error: "That doesn't look like a valid link." };
 
-  const platform = platformForHost(url.hostname);
-  if (!platform) {
-    const names = SUPPORTED_PLATFORMS.map((p) => PLATFORM_LABELS[p]).join(", ");
-    return { ok: false, error: `We only buy from supported platforms: ${names}.` };
-  }
-
+  const platform = platformForHost(url.hostname) ?? "other";
   url.protocol = "https:";
   url.hash = "";
   return { ok: true, url: url.toString(), platform, kind: linkKind(platform, url) };
+}
+
+/** A link to buy from: it must be on a platform we buy from. */
+export function validateProductLink(input: string): LinkResult {
+  const link = validateLink(input);
+  if (link.ok && link.platform === "other") {
+    const names = SUPPORTED_PLATFORMS.map((p) => PLATFORM_LABELS[p]).join(", ");
+    return {
+      ok: false,
+      error: `We buy from ${names}. Seen it somewhere else? Choose "I have a photo" and paste the link there: we'll find it for you.`,
+    };
+  }
+  if (!link.ok && link.error.startsWith("Paste the link")) {
+    return { ok: false, error: "Paste the product link (it starts with https://)." };
+  }
+  return link;
+}
+
+/** The "I have a link" path buys from the page; the others only use it as a reference. */
+export function validateLinkFor(pathType: PathType | undefined, input: string): LinkResult {
+  return pathType === "url" ? validateProductLink(input) : validateLink(input);
 }
 
 export interface RoutedPath {

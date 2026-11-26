@@ -11,9 +11,13 @@ import {
   type Platform,
   type ShippingMode,
 } from "./enums";
-import { routeForLink, validateProductLink } from "./links";
+import { routeForLink, validateLinkFor } from "./links";
 import { normalizeMyMobile } from "./phone";
 import { availableShippingModes } from "./shippingOptions";
+
+/** The option box for a category without its own option. */
+export const DEFAULT_OPTION_LABEL = "Option: colour, size, version";
+export const DEFAULT_OPTION_ERROR = "Tell us the colour, size or version (write “any” if it doesn't matter)";
 
 // The order form's input, validated identically in the browser (as the React
 // Hook Form resolver) and on the server (before insert). Field error keys are
@@ -122,7 +126,7 @@ export function validateOrderInput(raw: unknown, catalog: Catalog): OrderValidat
 
   if (pathType === "url" && !linkText) add("productUrl", "Paste the product link");
   if (linkText) {
-    const link = validateProductLink(linkText);
+    const link = validateLinkFor(pathType, linkText);
     if (!link.ok) {
       add("productUrl", link.error);
     } else {
@@ -148,6 +152,11 @@ export function validateOrderInput(raw: unknown, catalog: Catalog): OrderValidat
     for (const [key, message] of Object.entries(cat.fieldErrors)) {
       add(key === "variant_text" ? "variantText" : `details.${key}`, message);
     }
+  }
+  // A category with its own option (Colour, Shade…) says whether it's required.
+  // Otherwise we always ask: colour, size or version is what gets bought wrong.
+  if (category && !category.definition.option && !v.variantText) {
+    add("variantText", DEFAULT_OPTION_ERROR);
   }
 
   // ---- what we're searching from ----------------------------------------

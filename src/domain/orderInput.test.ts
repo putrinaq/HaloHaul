@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { seedCatalog } from "../db/seed/catalog";
-import { validateOrderInput, type OrderFormInput } from "./orderInput";
+import { DEFAULT_OPTION_ERROR, validateOrderInput, type OrderFormInput } from "./orderInput";
 
 const catalog = seedCatalog();
 
@@ -64,7 +64,7 @@ describe("validateOrderInput", () => {
 
   it("requires a supported product link on the link path", () => {
     expect(errors({ productUrl: "" }).productUrl).toBe("Paste the product link");
-    expect(errors({ productUrl: "https://www.amazon.com/dp/1" }).productUrl).toMatch(/supported platforms/);
+    expect(errors({ productUrl: "https://www.amazon.com/dp/1" }).productUrl).toMatch(/We buy from .*I have a photo/);
   });
 
   it("reroutes a RedNote post to reverse search and asks for the condition", () => {
@@ -90,6 +90,20 @@ describe("validateOrderInput", () => {
       referencePhotoKeys: ["photos/u1/a.webp"],
     }, catalog);
     expect(ok).toMatchObject({ ok: true, value: { platform: "other", productUrl: null } });
+  });
+
+  it("takes a link from any website on a photo search, as a reference", () => {
+    const r = validateOrderInput({
+      ...valid,
+      pathType: "reverse_search",
+      productUrl: "Saw this https://www.pinterest.com/pin/875809458808665144/",
+      conditionPreference: "new_only",
+    }, catalog);
+    expect(r).toMatchObject({
+      ok: true,
+      value: { pathType: "reverse_search", platform: "other", productUrl: "https://www.pinterest.com/pin/875809458808665144/" },
+    });
+    expect(errors({ pathType: "reverse_search", productUrl: "javascript:alert(1)", conditionPreference: "new_only" }).productUrl).toBeDefined();
   });
 
   it("requires a description for consultations", () => {
@@ -123,6 +137,12 @@ describe("validateOrderInput", () => {
     expect(errors({ acceptTerms: false }).acceptTerms).toMatch(/accept the terms/);
   });
 
+  it("always asks for the option when the category has none of its own", () => {
+    expect(errors({ variantText: "" })).toEqual({ variantText: DEFAULT_OPTION_ERROR });
+    expect(errors({ variantText: "   " })).toEqual({ variantText: DEFAULT_OPTION_ERROR });
+    expect(validateOrderInput({ ...valid, variantText: "any" }, catalog).ok).toBe(true);
+  });
+
   it("requires the variant for variant-driven categories", () => {
     expect(errors({ category: "cosmetics", details: {}, variantText: "" })).toEqual({ variantText: "Shade is required" });
   });
@@ -131,7 +151,7 @@ describe("validateOrderInput", () => {
     const r = validateOrderInput({ pathType: "url", productUrl: "https://www.amazon.com/dp/1", itemName: "", quantity: 1 }, catalog);
     expect(r.ok).toBe(false);
     if (r.ok) return;
-    expect(r.fieldErrors.productUrl).toMatch(/supported platforms/);
+    expect(r.fieldErrors.productUrl).toMatch(/We buy from .*I have a photo/);
     expect(r.fieldErrors.itemName).toBeDefined();
     expect(Object.keys(r.fieldErrors)).toEqual(
       expect.arrayContaining(["productUrl", "itemName", "category", "shippingMode", "contact", "acceptTerms"]),

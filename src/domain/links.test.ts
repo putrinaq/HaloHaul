@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { contentPostNotice, extractUrl, platformForHost, routeForLink, validateProductLink } from "./links";
+import { contentPostNotice, extractUrl, platformForHost, routeForLink, validateLink, validateLinkFor, validateProductLink } from "./links";
 
 describe("platformForHost", () => {
   it.each([
@@ -66,6 +66,16 @@ describe("validateProductLink", () => {
     const r = validateProductLink("https://www.amazon.com/dp/B000");
     expect(r.ok).toBe(false);
     if (!r.ok) expect(r.error).toMatch(/Taobao.*Pinduoduo/);
+  });
+
+  it("accepts any website as a reference link, but only supported platforms to buy from", () => {
+    const pin = "https://www.pinterest.com/pin/875809458808665144/";
+    expect(validateLink(pin)).toEqual({ ok: true, url: pin, platform: "other", kind: "product" });
+    expect(validateLinkFor("reverse_search", "https://houseofcb.com/dress#top")).toMatchObject({ ok: true, url: "https://houseofcb.com/dress" });
+    expect(validateLinkFor("consultation", pin).ok).toBe(true);
+    expect(validateLinkFor("url", pin).ok).toBe(false);
+    expect(validateLinkFor("url", "https://item.taobao.com/item.htm?id=1")).toMatchObject({ ok: true, platform: "taobao" });
+    for (const bad of ["", "javascript:alert(1)", "https://user:pw@pinterest.com/x"]) expect(validateLink(bad).ok).toBe(false);
   });
 
   it("rejects non-links, credentials in URLs, and other schemes", () => {

@@ -37,6 +37,7 @@ test("save an unfinished order to the cart, then finish and submit it from there
   await page.getByLabel(/^Size$/).fill("40");
   await page.getByLabel(/Size system/).selectOption("EU");
   await page.getByLabel(/Foot length/).fill("25.5");
+  await page.getByLabel(/^Option/).fill("Black");
   await page.getByRole("button", { name: "Continue" }).click();
   await page.getByLabel(/Air/).first().check();
   await page.getByRole("button", { name: "Save to cart" }).click();

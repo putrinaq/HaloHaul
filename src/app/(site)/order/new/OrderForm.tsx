@@ -30,9 +30,9 @@ import { hasMeasurements, prefillMeasurements, type SavedMeasurements } from "@/
 import type { BatchShippingMode, ConditionPreference, PathType, ShippingMode, StudentPathType } from "@/domain/enums";
 import { coordinationFeeDisplay, deliveryFeeSen, upfrontFee } from "@/domain/fees";
 import { PLATFORM_LABELS } from "@/domain/labels";
-import { contentPostNotice, routeForLink, validateProductLink } from "@/domain/links";
+import { contentPostNotice, routeForLink, validateLinkFor } from "@/domain/links";
 import { parseFxRate } from "@/domain/money";
-import { MAX_REFERENCE_PHOTOS, validateOrderInput, type OrderFormInput } from "@/domain/orderInput";
+import { DEFAULT_OPTION_LABEL, MAX_REFERENCE_PHOTOS, validateOrderInput, type OrderFormInput } from "@/domain/orderInput";
 import type { Settings } from "@/domain/settings";
 import { shippingOptions } from "@/domain/shippingOptions";
 import { fmtDate, fmtDays, formatMyr } from "@/lib/format";
@@ -54,7 +54,7 @@ export interface OrderFormProps {
 
 const PATHS: Array<{ value: StudentPathType; title: string; body: string; icon: typeof Link2 }> = [
   { value: "url", title: "I have a link", body: "A product page on a supported platform.", icon: Link2 },
-  { value: "reverse_search", title: "I have a photo", body: "A screenshot or a RedNote/Douyin post. We find it.", icon: Camera },
+  { value: "reverse_search", title: "I have a photo", body: "A screenshot, or a link from any website. We find it.", icon: Camera },
   { value: "consultation", title: "I'm not sure", body: "Tell us what you need and your budget.", icon: MessageCircleQuestion },
 ];
 
@@ -151,7 +151,7 @@ export function OrderForm(props: OrderFormProps) {
   });
 
   // Live link check: platform, and RedNote/Douyin posts rerouted to photo search.
-  const link = useMemo(() => (productUrl?.trim() ? validateProductLink(productUrl) : null), [productUrl]);
+  const link = useMemo(() => (productUrl?.trim() ? validateLinkFor(pathType, productUrl) : null), [pathType, productUrl]);
   const effectivePath: PathType = link?.ok ? routeForLink(pathType, link).pathType : pathType;
   const platform = link?.ok ? link.platform : "other";
 
@@ -389,7 +389,7 @@ export function OrderForm(props: OrderFormProps) {
               pathType === "url"
                 ? "Product link"
                 : pathType === "reverse_search"
-                  ? "Link to the post (RedNote, Douyin…) — optional"
+                  ? "Link to where you saw it (any website) — optional"
                   : "Link — optional"
             }
             id="productUrl"
@@ -400,7 +400,7 @@ export function OrderForm(props: OrderFormProps) {
               id="productUrl"
               inputMode="url"
               autoComplete="off"
-              placeholder="https://item.taobao.com/…"
+              placeholder={pathType === "url" ? "https://item.taobao.com/…" : "https://www.pinterest.com/pin/…"}
               className="h-11"
               aria-invalid={err("productUrl") ? true : undefined}
               {...register("productUrl")}
@@ -408,7 +408,7 @@ export function OrderForm(props: OrderFormProps) {
           </Field>
           {link?.ok && !err("productUrl") ? (
             <p className="-mt-4 flex items-center gap-1.5 text-sm text-success">
-              <Check className="size-4" /> {PLATFORM_LABELS[link.platform]} link
+              <Check className="size-4" /> {link.platform === "other" ? "Link added" : `${PLATFORM_LABELS[link.platform]} link`}
             </p>
           ) : null}
           {link?.ok && pathType === "url" && effectivePath === "reverse_search" ? (
@@ -545,15 +545,16 @@ export function OrderForm(props: OrderFormProps) {
                 label={
                   category.definition.option
                     ? `${category.definition.option.label}${category.definition.option.required ? "" : " — optional"}`
-                    : "Option — colour, size, version (optional)"
+                    : DEFAULT_OPTION_LABEL
                 }
                 id="variantText"
                 error={err("variantText")}
-                hint={category.definition.option?.helpText}
+                hint={category.definition.option ? category.definition.option.helpText : "Write “any” if it doesn't matter."}
               >
                 <Input
                   id="variantText"
                   className="h-11"
+                  placeholder={category.definition.option ? undefined : "e.g. Black, size M"}
                   aria-invalid={err("variantText") ? true : undefined}
                   {...register("variantText")}
                 />
