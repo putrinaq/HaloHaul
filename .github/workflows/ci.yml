@@ -63,47 +63,4 @@ jobs:
           cache-from: type=gha,scope=${{ matrix.target }}
           cache-to: type=gha,mode=max,scope=${{ matrix.target }}
 
-  # Off (and shown as skipped) until the AUTO_DEPLOY variable is "true": docs/DEPLOY.md.
-  deploy:
-    name: Deploy to VPS
-    needs: build
-    if: vars.AUTO_DEPLOY == 'true' && github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
-    runs-on: ubuntu-24.04
-    environment: production
-    permissions: {}
-    timeout-minutes: 15
-    steps:
-      # The key can only run scripts/deploy.sh on the VPS, with this commit.
-      - name: Deploy this commit
-        env:
-          HOST: ${{ secrets.VPS_HOST }}
-          PORT: ${{ secrets.VPS_PORT }}
-          REMOTE_USER: ${{ secrets.VPS_USER }}
-          KEY: ${{ secrets.VPS_SSH_KEY }}
-          KNOWN_HOSTS: ${{ secrets.VPS_KNOWN_HOSTS }}
-        run: |
-          umask 077
-          # Says which secret looks wrong, without printing any.
-          bad=0
-          check() { if ! eval "$2"; then echo "::error::$1"; bad=1; fi; }
-          check "VPS_HOST should be just the address" '[[ "$HOST" =~ ^[A-Za-z0-9.-]+$ ]]'
-          check "VPS_PORT should be just a number" '[[ "$PORT" =~ ^[0-9]+$ ]]'
-          check "VPS_USER should be just the name" '[[ "$REMOTE_USER" =~ ^[a-z][a-z0-9_-]*$ ]]'
-          check "VPS_KNOWN_HOSTS should start with [VPS_HOST]:VPS_PORT" '[[ "$KNOWN_HOSTS" == "[$HOST]:$PORT ssh-ed25519 "* ]]'
-          printf '%s\n' "$KEY" | tr -d '\r' > "$RUNNER_TEMP/key"
-          trap 'rm -f "$RUNNER_TEMP/key"' EXIT
-          check "VPS_SSH_KEY is not a complete private key" 'ssh-keygen -y -P "" -f "$RUNNER_TEMP/key" > /dev/null 2>&1'
-          [ "$bad" = 0 ] || exit 1
-
-          printf '%s\n' "$KNOWN_HOSTS" > "$RUNNER_TEMP/known_hosts"
-          # 255 is ssh itself failing (say, the network); anything else is the script's answer.
-          for try in 1 2 3; do
-            code=0
-            ssh -i "$RUNNER_TEMP/key" -p "$PORT" -o IdentitiesOnly=yes -o BatchMode=yes -o ConnectTimeout=20 \
-              -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$RUNNER_TEMP/known_hosts" \
-              "$REMOTE_USER@$HOST" "$GITHUB_SHA" || code=$?
-            [ "$code" = 255 ] || exit "$code"
-            echo "Could not connect (try $try of 3)"
-            sleep 10
-          done
-          exit 255
+# Going live: the VPS deploys each passing build of main itself (docs/DEPLOY.md).

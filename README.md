@@ -103,9 +103,9 @@ off, so the 1 GB VPS never resizes images.
 ## Deploy
 
 Push to `main`. GitHub Actions lints, typechecks and tests, then builds the
-`app` and `worker` images and pushes them to GHCR. If the `AUTO_DEPLOY` variable
-is `true`, it then runs `scripts/deploy.sh` on the VPS: back up the database,
-switch images, check health, and go back if the new version isn't healthy. The
+`app` and `worker` images and pushes them to GHCR. The VPS checks every minute and runs
+`scripts/deploy.sh` for a new passing build: back up the database, switch
+images, check health, and go back if the new version isn't healthy. The
 one-shot `migrate` service applies migrations before `app` and `worker` start.
 Nothing is built on the server. Setup: [docs/DEPLOY.md](docs/DEPLOY.md).
 

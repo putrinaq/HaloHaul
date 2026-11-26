@@ -68,3 +68,6 @@ backup.env
 /evolution.env
 /backups/
 /.deploy.lock
+/.deploy-etag
+/.deploy-headers
+/.deploy-failed

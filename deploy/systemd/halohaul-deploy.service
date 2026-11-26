@@ -1,0 +1,13 @@
+[Unit]
+Description=Deploy the newest passing build of HaloHaul (scripts/auto-deploy.sh)
+After=network-online.target docker.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=putri
+Group=putri
+SupplementaryGroups=docker
+WorkingDirectory=/opt/halohaul
+ExecStart=/opt/halohaul/scripts/auto-deploy.sh
+TimeoutStartSec=20min

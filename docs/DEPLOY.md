@@ -1,47 +1,39 @@
 # Deploying
 
-Every push to `main` is checked and built into images by GitHub Actions. Putting
-them live is off until you turn it on.
+Every push to `main` is checked and built into images by GitHub Actions. The VPS
+puts them live itself: every minute `halohaul-deploy.timer` asks GitHub for the
+newest passing build of `main` and, if it isn't live yet, runs
+`scripts/deploy.sh`. Nothing outside can log in to the VPS to deploy.
+
+`deploy.sh` backs up the database to `backups/` (the last ten), switches images,
+waits for the app to be healthy, and goes back to the previous version if it
+isn't. Database changes aren't undone; the backup is there for that. A version
+that failed isn't tried again: the next push is. Nginx changes are installed by
+hand (it says when there are any).
+
+## On and off
+
+`AUTO_DEPLOY=true` in `/opt/halohaul/.env` turns it on; anything else turns it off.
+
+## See what it did
+
+```bash
+journalctl -u halohaul-deploy --since today
+systemctl list-timers halohaul-deploy.timer
+```
 
 ## By hand
 
-On the VPS, as the deploy user, once the images are built:
+As the deploy user, with a full commit sha whose images are built:
 
+```bash
+cd /opt/halohaul && scripts/deploy.sh <sha>
 ```
-cd /opt/halohaul && scripts/deploy.sh <full commit sha>
+
+## Setting it up (once, as root)
+
+```bash
+cp /opt/halohaul/deploy/systemd/halohaul-deploy.* /etc/systemd/system/
+systemctl daemon-reload && systemctl enable --now halohaul-deploy.timer
+echo AUTO_DEPLOY=true >> /opt/halohaul/.env
 ```
-
-It backs up the database to `backups/`, switches version, and goes back by itself
-if the new one isn't healthy. Nginx changes are installed by hand; it says when
-there are any.
-
-## Automatically
-
-The "Deploy to VPS" job is skipped unless the repository variable `AUTO_DEPLOY`
-is `true`. **Then every push to main goes live.**
-
-1. On the VPS, make a key that can only run the deploy script:
-
-   ```
-   sudo -iu putri
-   ssh-keygen -t ed25519 -N '' -C halohaul-github-deploy -f ~/.ssh/github_deploy
-   echo "restrict,command=\"/opt/halohaul/scripts/deploy.sh\" $(cat ~/.ssh/github_deploy.pub)" >> ~/.ssh/authorized_keys
-   chmod 600 ~/.ssh/authorized_keys
-   ```
-
-2. In GitHub → Settings → Environments → `production`, limit deployment branches
-   to `main`, and add these environment secrets:
-
-   | Secret | Value |
-   |---|---|
-   | `VPS_HOST` | the VPS address |
-   | `VPS_PORT` | its SSH port |
-   | `VPS_USER` | `putri` |
-   | `VPS_SSH_KEY` | all of `cat ~/.ssh/github_deploy` (then `rm ~/.ssh/github_deploy`) |
-   | `VPS_KNOWN_HOSTS` | output of `ssh-keyscan -t ed25519 -p PORT HOST`, checked against `ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub` on the VPS |
-
-3. In Settings → Secrets and variables → Actions → **Variables**, add
-   `AUTO_DEPLOY` = `true`.
-
-To stop: set `AUTO_DEPLOY` to anything else. To revoke the key: delete its line
-from `~/.ssh/authorized_keys`.
