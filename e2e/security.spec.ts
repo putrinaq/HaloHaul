@@ -17,8 +17,7 @@ test("each account only works on its own sign-in page", async ({ page }) => {
   await expect(page.getByText("don't match an admin account")).toBeVisible();
 
   await page.goto("/sign-in");
-  await page.getByRole("tab", { name: "Password" }).click();
-  const panel = page.getByRole("tabpanel", { name: "Password" });
+  const panel = page.getByRole("tabpanel", { name: "Sign in" });
   await panel.getByLabel("Email").fill(ADMIN.email);
   await panel.getByLabel("Password", { exact: true }).fill(ADMIN.password);
   await panel.getByRole("button", { name: "Sign in", exact: true }).click();

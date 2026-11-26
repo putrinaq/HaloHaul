@@ -14,9 +14,6 @@ const envSchema = z.object({
   /** Admin pages require 2FA. "false" turns that off outside production only (see adminNeedsTwoFactor). */
   ADMIN_REQUIRE_2FA: z.stringbool().default(true),
 
-  RESEND_API_KEY: z.string().optional(),
-  EMAIL_FROM: z.string().default("HaloHaul <hello@halohaul.com>"),
-
   R2_ACCOUNT_ID: z.string().optional(),
   R2_ACCESS_KEY_ID: z.string().optional(),
   R2_SECRET_ACCESS_KEY: z.string().optional(),
@@ -46,9 +43,6 @@ export function env(): Env {
   if (!parsed.success) {
     const issues = parsed.error.issues.map((i) => `  ${i.path.join(".")}: ${i.message}`).join("\n");
     throw new Error(`Invalid environment variables:\n${issues}`);
-  }
-  if (parsed.data.NODE_ENV === "production" && !parsed.data.RESEND_API_KEY) {
-    throw new Error("RESEND_API_KEY is required in production");
   }
   cached = parsed.data;
   return cached;

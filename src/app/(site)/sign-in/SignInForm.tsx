@@ -1,9 +1,9 @@
 "use client";
 
-import { ArrowRight, Check, Mail, UserRound } from "lucide-react";
+import { ArrowRight, Mail, UserRound } from "lucide-react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent, type ReactNode } from "react";
+import { useRef, useState, type FormEvent, type KeyboardEvent, type ReactNode } from "react";
 import { Field, PasswordField } from "@/components/form/AuthFields";
 import {
   EMAIL_MAX,
@@ -17,28 +17,13 @@ import { authClient } from "@/lib/auth-client";
 import { safeNext } from "@/lib/safeNext";
 import { cn } from "@/lib/utils";
 
-type Mode = "link" | "password" | "signup";
+type Mode = "password" | "signup";
 type Errors = Partial<Record<"name" | "email" | "password", string>>;
 
 const MODES: { id: Mode; label: string; title: string; lede: string }[] = [
-  { id: "link", label: "Email link", title: "Sign in", lede: "We'll email you a one-tap sign-in link." },
-  { id: "password", label: "Password", title: "Welcome back", lede: "Sign in with your email and password." },
+  { id: "password", label: "Sign in", title: "Welcome back", lede: "Sign in with your email and password." },
   { id: "signup", label: "New account", title: "Create your account", lede: "It takes less than a minute." },
 ];
-
-const RESEND_SECONDS = 60;
-
-const LINK_POINTS = ["No password to remember", "Links expire after 10 minutes", "New here? It creates your account too"];
-
-/** Best-effort shortcut to the inbox for common providers. */
-function inboxFor(email: string): { label: string; href: string } | null {
-  const domain = email.split("@")[1] ?? "";
-  if (domain === "gmail.com" || domain === "googlemail.com") return { label: "Open Gmail", href: "https://mail.google.com/" };
-  if (/^(outlook|hotmail|live|msn)\./.test(domain)) return { label: "Open Outlook", href: "https://outlook.live.com/mail/" };
-  if (domain.startsWith("yahoo.")) return { label: "Open Yahoo Mail", href: "https://mail.yahoo.com/" };
-  if (domain === "icloud.com" || domain === "me.com") return { label: "Open iCloud Mail", href: "https://www.icloud.com/mail/" };
-  return null;
-}
 
 /** Maps auth errors to plain sentences. Rendered as text only, never as HTML. */
 function friendly(error: { status?: number; code?: string; message?: string }, fallback: string): string {
@@ -61,12 +46,11 @@ export function SignInForm() {
   const params = useSearchParams();
   const next = safeNext(params.get("next"));
 
-  const [mode, setMode] = useState<Mode>("link");
+  const [mode, setMode] = useState<Mode>("password");
   const [email, setEmail] = useState("");
   const [errors, setErrors] = useState<Errors>({});
   const [formError, setFormError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [sentTo, setSentTo] = useState<string | null>(null);
   const inFlight = useRef(false);
 
   const switchMode = (m: Mode) => {
@@ -121,32 +105,13 @@ export function SignInForm() {
     router.refresh();
   };
 
-  function sendLink(to: string) {
-    return run(async () => {
-      const { error } = await authClient.signIn.magicLink({ email: to, callbackURL: next });
-      // Our side failed (say, email isn't working): another try won't help, a password will.
-      if (error && (error.status ?? 0) >= 500) {
-        return "We can't send sign-in emails right now. Use the Password tab, or New account if you haven't got one.";
-      }
-      if (error) return friendly(error, "We couldn't send the link. Try again.");
-      setSentTo(to);
-      return null;
-    });
-  }
-
   function onSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    const fields: (keyof Errors)[] =
-      mode === "link" ? ["email"] : mode === "password" ? ["email", "password"] : ["name", "email", "password"];
+    const fields: (keyof Errors)[] = mode === "password" ? ["email", "password"] : ["name", "email", "password"];
     const { ok, values, bot } = validate(e.currentTarget, fields);
-    if (!ok) return;
-    if (bot) {
-      if (mode === "link") setSentTo(values.email!);
-      return;
-    }
+    if (!ok || bot) return;
     setEmail(values.email!);
 
-    if (mode === "link") return void sendLink(values.email!);
     if (mode === "password") {
       return void run(async () => {
         const { error } = await authClient.signIn.email({ email: values.email!, password: values.password! });
@@ -167,164 +132,128 @@ export function SignInForm() {
     });
   }
 
-  // All three panels (and the "check your inbox" screen) stay mounted in one
-  // grid cell, with only the active one visible. The card is therefore always
-  // as tall as the tallest panel, so switching tabs never moves the page.
-  // Inactive layers are `inert`: not focusable, not autofilled, not announced.
+  // Both panels stay mounted in one grid cell, with only the active one
+  // visible. The card is therefore always as tall as the taller panel, so
+  // switching tabs never moves the page. The inactive one is `inert`: not
+  // focusable, not autofilled, not announced.
   const stack = "col-start-1 row-start-1";
 
   return (
-    <div className="grid">
-      <div className={cn(stack, sentTo && "invisible")} inert={sentTo !== null}>
-        <div className="grid">
-          {MODES.map((m) => (
-            <div
-              key={m.id}
-              aria-hidden={m.id !== mode}
-              className={cn(stack, m.id === mode ? "signin-panel-in" : "invisible")}
-            >
-              <h2 className="display text-3xl sm:text-4xl">{m.title}</h2>
-              <p className="mt-1.5 text-sm text-white/65">{m.lede}</p>
-            </div>
-          ))}
-        </div>
-
-        <ModeTabs mode={mode} onChange={switchMode} />
-
-        <div className="mt-6 grid">
-          {MODES.map(({ id }) => {
-            const active = id === mode;
-            return (
-              <form
-                key={id}
-                id={`panel-${id}`}
-                role="tabpanel"
-                aria-labelledby={`tab-${id}`}
-                inert={!active}
-                onSubmit={onSubmit}
-                noValidate
-                className={cn(stack, "flex flex-col gap-4", active ? "signin-panel-in" : "invisible")}
-              >
-                {/* Honeypot: hidden from people and assistive tech, irresistible to form bots. */}
-                <input
-                  type="text"
-                  name="company"
-                  tabIndex={-1}
-                  autoComplete="off"
-                  aria-hidden
-                  className="absolute -left-[9999px] size-px opacity-0"
-                />
-
-                {id === "signup" ? (
-                  <Field
-                    name="name"
-                    label="Name"
-                    icon={<UserRound className="size-4" aria-hidden />}
-                    error={active ? errors.name : undefined}
-                    onClean={cleanName}
-                    onFieldError={(msg) => setErrors((p) => ({ ...p, name: msg }))}
-                    autoComplete="name"
-                    autoCapitalize="words"
-                    maxLength={NAME_MAX}
-                    placeholder="Your full name"
-                  />
-                ) : null}
-
-                {/* Controlled and shared, so the address carries across tabs. */}
-                <Field
-                  name="email"
-                  label="Email"
-                  type="email"
-                  icon={<Mail className="size-4" aria-hidden />}
-                  error={active ? errors.email : undefined}
-                  onClean={cleanEmail}
-                  onFieldError={(msg) => setErrors((p) => ({ ...p, email: msg }))}
-                  value={email}
-                  onValue={setEmail}
-                  autoComplete={id === "signup" ? "email" : "username"}
-                  inputMode="email"
-                  autoCapitalize="none"
-                  spellCheck={false}
-                  maxLength={EMAIL_MAX}
-                  placeholder="you@example.com"
-                />
-
-                {id !== "link" ? (
-                  <PasswordField
-                    label={id === "signup" ? `Password (at least ${PASSWORD_MIN} characters)` : "Password"}
-                    autoComplete={id === "signup" ? "new-password" : "current-password"}
-                    error={active ? errors.password : undefined}
-                    showStrength={id === "signup"}
-                  />
-                ) : null}
-
-                <SubmitButton busy={active && busy}>
-                  {id === "link" ? "Email me a sign-in link" : id === "password" ? "Sign in" : "Create account"}
-                </SubmitButton>
-
-                {/* Reserved line so an error doesn't push the layout around. */}
-                <div role="alert" aria-live="assertive" className="-mt-1 min-h-5 text-center text-sm text-destructive">
-                  {active ? formError : null}
-                </div>
-
-                {id === "link" ? (
-                  <ul className="space-y-3 border-t border-white/10 pt-5 text-sm text-white/70">
-                    {LINK_POINTS.map((point) => (
-                      <li key={point} className="flex items-center gap-3">
-                        <Check className="size-4 shrink-0 text-brand" aria-hidden />
-                        {point}
-                      </li>
-                    ))}
-                  </ul>
-                ) : null}
-
-                {/* Pinned to the bottom so every tab ends at the same place. */}
-                <p className="mt-auto pt-2 text-center text-xs leading-relaxed text-white/55">
-                  {id === "link" ? (
-                    <>
-                      Prefer a password?{" "}
-                      <button type="button" onClick={() => switchMode("password")} className="link-underline tap-area text-white/85">
-                        Sign in with one
-                      </button>
-                    </>
-                  ) : id === "password" ? (
-                    <>
-                      Forgot it?{" "}
-                      <button type="button" onClick={() => switchMode("link")} className="link-underline tap-area text-white/85">
-                        Email me a sign-in link instead
-                      </button>
-                    </>
-                  ) : (
-                    <>
-                      By creating an account you agree to our{" "}
-                      <Link href="/terms" className="link-underline tap-area text-white/85">
-                        Terms &amp; Conditions
-                      </Link>{" "}
-                      and{" "}
-                      <Link href="/privacy" className="link-underline tap-area text-white/85">
-                        Privacy Policy
-                      </Link>
-                      .
-                    </>
-                  )}
-                </p>
-              </form>
-            );
-          })}
-        </div>
+    <div>
+      <div className="grid">
+        {MODES.map((m) => (
+          <div
+            key={m.id}
+            aria-hidden={m.id !== mode}
+            className={cn(stack, m.id === mode ? "signin-panel-in" : "invisible")}
+          >
+            <h2 className="display text-3xl sm:text-4xl">{m.title}</h2>
+            <p className="mt-1.5 text-sm text-white/65">{m.lede}</p>
+          </div>
+        ))}
       </div>
 
-      {sentTo ? (
-        <div className={cn(stack, "self-center")}>
-          <LinkSent
-            email={sentTo}
-            busy={busy}
-            error={formError}
-            onResend={() => sendLink(sentTo)}
-            onBack={() => setSentTo(null)}
-          />
-        </div>
-      ) : null}
+      <ModeTabs mode={mode} onChange={switchMode} />
+
+      <div className="mt-6 grid">
+        {MODES.map(({ id }) => {
+          const active = id === mode;
+          return (
+            <form
+              key={id}
+              id={`panel-${id}`}
+              role="tabpanel"
+              aria-labelledby={`tab-${id}`}
+              inert={!active}
+              onSubmit={onSubmit}
+              noValidate
+              className={cn(stack, "flex flex-col gap-4", active ? "signin-panel-in" : "invisible")}
+            >
+              {/* Honeypot: hidden from people and assistive tech, irresistible to form bots. */}
+              <input
+                type="text"
+                name="company"
+                tabIndex={-1}
+                autoComplete="off"
+                aria-hidden
+                className="absolute -left-[9999px] size-px opacity-0"
+              />
+
+              {id === "signup" ? (
+                <Field
+                  name="name"
+                  label="Name"
+                  icon={<UserRound className="size-4" aria-hidden />}
+                  error={active ? errors.name : undefined}
+                  onClean={cleanName}
+                  onFieldError={(msg) => setErrors((p) => ({ ...p, name: msg }))}
+                  autoComplete="name"
+                  autoCapitalize="words"
+                  maxLength={NAME_MAX}
+                  placeholder="Your full name"
+                />
+              ) : null}
+
+              {/* Controlled and shared, so the address carries across tabs. */}
+              <Field
+                name="email"
+                label="Email"
+                type="email"
+                icon={<Mail className="size-4" aria-hidden />}
+                error={active ? errors.email : undefined}
+                onClean={cleanEmail}
+                onFieldError={(msg) => setErrors((p) => ({ ...p, email: msg }))}
+                value={email}
+                onValue={setEmail}
+                autoComplete={id === "signup" ? "email" : "username"}
+                inputMode="email"
+                autoCapitalize="none"
+                spellCheck={false}
+                maxLength={EMAIL_MAX}
+                placeholder="you@example.com"
+              />
+
+              <PasswordField
+                label={id === "signup" ? `Password (at least ${PASSWORD_MIN} characters)` : "Password"}
+                autoComplete={id === "signup" ? "new-password" : "current-password"}
+                error={active ? errors.password : undefined}
+                showStrength={id === "signup"}
+              />
+
+              <SubmitButton busy={active && busy}>{id === "password" ? "Sign in" : "Create account"}</SubmitButton>
+
+              {/* Reserved line so an error doesn't push the layout around. */}
+              <div role="alert" aria-live="assertive" className="-mt-1 min-h-5 text-center text-sm text-destructive">
+                {active ? formError : null}
+              </div>
+
+              {/* Pinned to the bottom so both tabs end at the same place. */}
+              <p className="mt-auto pt-2 text-center text-xs leading-relaxed text-white/55">
+                {id === "password" ? (
+                  <>
+                    New here?{" "}
+                    <button type="button" onClick={() => switchMode("signup")} className="link-underline tap-area text-white/85">
+                      Create an account
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    By creating an account you agree to our{" "}
+                    <Link href="/terms" className="link-underline tap-area text-white/85">
+                      Terms &amp; Conditions
+                    </Link>{" "}
+                    and{" "}
+                    <Link href="/privacy" className="link-underline tap-area text-white/85">
+                      Privacy Policy
+                    </Link>
+                    .
+                  </>
+                )}
+              </p>
+            </form>
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -346,13 +275,13 @@ function ModeTabs({ mode, onChange }: { mode: Mode; onChange: (m: Mode) => void 
   return (
     <div
       role="tablist"
-      aria-label="How to sign in"
+      aria-label="Sign in or create an account"
       onKeyDown={onKeyDown}
-      className="relative mt-6 grid grid-cols-3 rounded-xl border border-white/10 bg-white/5 p-1"
+      className="relative mt-6 grid grid-cols-2 rounded-xl border border-white/10 bg-white/5 p-1"
     >
       <span
         aria-hidden
-        className="absolute inset-y-1 left-1 w-[calc((100%-0.5rem)/3)] rounded-lg bg-white shadow-[0_4px_20px_-6px_rgb(255_255_255/0.5)] transition-transform duration-500 ease-(--ease-out-expo) motion-reduce:transition-none"
+        className="absolute inset-y-1 left-1 w-[calc((100%-0.5rem)/2)] rounded-lg bg-white shadow-[0_4px_20px_-6px_rgb(255_255_255/0.5)] transition-transform duration-500 ease-(--ease-out-expo) motion-reduce:transition-none"
         style={{ transform: `translateX(${index * 100}%)` }}
       />
       {MODES.map((m, i) => (
@@ -396,75 +325,5 @@ function SubmitButton({ busy, children }: { busy: boolean; children: ReactNode }
         <ArrowRight className="size-4 transition-transform duration-300 group-hover:translate-x-1" aria-hidden />
       )}
     </button>
-  );
-}
-
-function LinkSent({
-  email,
-  busy,
-  error,
-  onResend,
-  onBack,
-}: {
-  email: string;
-  busy: boolean;
-  error: string | null;
-  onResend: () => void;
-  onBack: () => void;
-}) {
-  const [left, setLeft] = useState(RESEND_SECONDS);
-  const inbox = inboxFor(email);
-
-  useEffect(() => {
-    if (left <= 0) return;
-    const t = setTimeout(() => setLeft((s) => s - 1), 1000);
-    return () => clearTimeout(t);
-  }, [left]);
-
-  return (
-    <div role="status" aria-live="polite" className="signin-panel-in text-center">
-      <svg viewBox="0 0 52 52" className="signin-check mx-auto size-16 text-brand" aria-hidden>
-        <circle cx="26" cy="26" r="24" fill="none" stroke="currentColor" strokeWidth="1.5" />
-        <path d="M15 27l7 7 15-16" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
-      </svg>
-      <h2 className="display mt-5 text-3xl sm:text-4xl">Check your inbox</h2>
-      <p className="mt-2 text-sm text-white/70">
-        We sent a sign-in link to <span className="font-medium break-all text-white">{email}</span>. It expires in 10
-        minutes.
-      </p>
-
-      <div className="mt-7 space-y-3">
-        {inbox ? (
-          <a
-            href={inbox.href}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="group flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-white font-medium text-black transition-colors hover:bg-white/90"
-          >
-            {inbox.label}
-            <ArrowRight className="size-4 transition-transform duration-300 group-hover:translate-x-1" aria-hidden />
-          </a>
-        ) : null}
-        <button
-          type="button"
-          onClick={() => {
-            onResend();
-            setLeft(RESEND_SECONDS);
-          }}
-          disabled={left > 0 || busy}
-          className="h-12 w-full rounded-xl border border-white/15 text-sm text-white/85 transition-colors hover:bg-white/5 disabled:cursor-not-allowed disabled:text-white/40 disabled:hover:bg-transparent"
-        >
-          {busy ? "Sending…" : left > 0 ? `Resend link in ${left}s` : "Resend link"}
-        </button>
-      </div>
-
-      <div role="alert" className="mt-3 min-h-5 text-sm text-destructive">
-        {error}
-      </div>
-
-      <button type="button" onClick={onBack} className="link-underline mt-2 text-sm text-white/65 hover:text-white">
-        Use a different email
-      </button>
-    </div>
   );
 }

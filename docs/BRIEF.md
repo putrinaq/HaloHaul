@@ -23,7 +23,7 @@ Design references are in `/design` (Figma exports: homepage, admin "Need Action"
 | ORM / migrations | Drizzle ORM + drizzle-kit |
 | Validation | Zod (shared between client and server) |
 | Forms | React Hook Form + Zod resolver |
-| Auth | Better Auth (email magic link + password for students; admin role with 2FA) |
+| Auth | Better Auth (email + password for students; admin role with 2FA) |
 | UI | Tailwind CSS + shadcn/ui, Lucide icons |
 | Tables | TanStack Table |
 | Charts | Recharts |

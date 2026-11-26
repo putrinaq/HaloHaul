@@ -22,7 +22,6 @@ const env = {
   DATABASE_POOL_MAX: "1",
   APP_URL: `http://localhost:${APP_PORT}`,
   BETTER_AUTH_SECRET: "e2e-only-secret-not-for-real-use-0123456789abcdef",
-  RESEND_API_KEY: "re_e2e_dummy",
   ADMIN_EMAIL: "e2e-admin@example.com",
   ADMIN_PASSWORD: "e2e-admin-password",
   ADMIN_NAME: "Test Admin",

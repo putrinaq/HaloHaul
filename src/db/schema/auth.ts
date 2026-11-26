@@ -1,7 +1,7 @@
 import { boolean, index, integer, pgTable, text, timestamp } from "drizzle-orm/pg-core";
 import { userRole } from "./enums";
 
-// Tables managed by Better Auth (core + magic-link + two-factor plugins).
+// Tables managed by Better Auth (core + two-factor plugin).
 // Property names must match Better Auth's field names; the DB uses snake_case
 // via the client's `casing` option.
 

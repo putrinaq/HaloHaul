@@ -51,8 +51,6 @@ npm run dev                   # http://localhost:3000
 npm run worker                # in another terminal
 ```
 
-Without `RESEND_API_KEY`, emails (such as magic links) are printed to the console.
-
 | Command | |
 |---|---|
 | `npm test` | unit + DB tests (DB tests use in-process PGlite, no server needed) |

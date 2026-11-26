@@ -7,15 +7,11 @@ import { createAuth, type Auth } from "./auth";
 let db: TestDb;
 let auth: Auth;
 let close: () => Promise<void>;
-const sentEmails: string[] = [];
 
 beforeAll(async () => {
   vi.stubEnv("DATABASE_URL", "postgres://unused@localhost/unused");
   vi.stubEnv("APP_URL", "http://localhost:3000");
   vi.stubEnv("BETTER_AUTH_SECRET", "test-secret-test-secret-test-secret-123");
-  vi.spyOn(console, "info").mockImplementation((msg: string) => {
-    if (String(msg).startsWith("[email:dev]")) sentEmails.push(String(msg));
-  });
   vi.spyOn(console, "warn").mockImplementation(() => {});
 
   const t = await createTestDb();
@@ -64,28 +60,6 @@ describe("auth", () => {
     await expect(
       auth.api.signUpEmail({ body: { name: "Short", email: "short@example.com", password: "short" } }),
     ).rejects.toThrow();
-  });
-
-  it("sends magic links to students but never to admins", async () => {
-    await auth.api.signUpEmail({
-      body: { name: "Op", email: "admin@example.com", password: "correct-horse-battery" },
-    });
-    await db.update(users).set({ role: "admin" }).where(eq(users.email, "admin@example.com"));
-    sentEmails.length = 0;
-
-    const student = await auth.api.signInMagicLink({
-      body: { email: "aina@example.com" },
-      headers: new Headers(),
-    });
-    const admin = await auth.api.signInMagicLink({
-      body: { email: "admin@example.com" },
-      headers: new Headers(),
-    });
-
-    // Same response for both, so the endpoint can't be used to find admins.
-    expect(admin).toEqual(student);
-    expect(sentEmails).toHaveLength(1);
-    expect(sentEmails[0]).toContain("to=aina@example.com");
   });
 });
 

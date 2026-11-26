@@ -2,19 +2,17 @@ import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { APIError, createAuthMiddleware } from "better-auth/api";
 import { nextCookies } from "better-auth/next-js";
-import { magicLink, twoFactor } from "better-auth/plugins";
-import { eq } from "drizzle-orm";
+import { twoFactor } from "better-auth/plugins";
 import { USER_ROLES } from "../domain/enums";
 import { checkPassword, cleanEmail, cleanName, type Cleaned } from "../domain/sanitize";
 import { getDb } from "../db/client";
 import { ADMIN_PORTAL_HEADER } from "../lib/authPortal";
 import { accounts, sessions, twoFactors, users, verifications } from "../db/schema";
-import { sendEmail } from "./email";
 import { env } from "./env";
 
 type AuthDb = Parameters<typeof drizzleAdapter>[0];
 
-const EMAIL_PATHS = new Set(["/sign-up/email", "/sign-in/email", "/sign-in/magic-link", "/request-password-reset"]);
+const EMAIL_PATHS = new Set(["/sign-up/email", "/sign-in/email"]);
 const NAME_PATHS = new Set(["/sign-up/email", "/update-user"]);
 const PASSWORD_PATHS = new Set(["/sign-up/email", "/sign-in/email"]);
 
@@ -107,11 +105,9 @@ export function createAuth(db: AuthDb, opts: { baseURL: string; secret: string; 
       max: 100,
       customRules: {
         "/sign-in/email": { window: 60, max: 5 },
-        "/sign-in/magic-link": { window: 300, max: 3 },
         "/sign-up/email": { window: 300, max: 5 },
         "/two-factor/verify-totp": { window: 60, max: 5 },
         "/two-factor/verify-backup-code": { window: 300, max: 5 },
-        "/request-password-reset": { window: 300, max: 3 },
       },
     },
     hooks: { before: sanitizeAuthInput },
@@ -120,30 +116,6 @@ export function createAuth(db: AuthDb, opts: { baseURL: string; secret: string; 
       ipAddress: { ipAddressHeaders: ["x-forwarded-for"] },
     },
     plugins: [
-      magicLink({
-        expiresIn: 60 * 10,
-        storeToken: "hashed",
-        sendMagicLink: async ({ email, url }) => {
-          // The two-factor plugin only guards password sign-in, so a magic link
-          // would let an admin skip 2FA. Admins must use password + TOTP. The
-          // response is identical either way, so this leaks nothing.
-          const [account] = await (db as ReturnType<typeof getDb>)
-            .select({ role: users.role })
-            .from(users)
-            .where(eq(users.email, email.toLowerCase()))
-            .limit(1);
-          if (account?.role === "admin") {
-            console.warn("[auth] magic link refused for an admin account");
-            return;
-          }
-          await sendEmail({
-            to: email,
-            subject: "Your HaloHaul sign-in link",
-            text: `Sign in to HaloHaul:\n\n${url}\n\nThis link expires in 10 minutes. If you didn't ask for it, ignore this email.`,
-            html: `<p>Sign in to HaloHaul:</p><p><a href="${url}">Sign in</a></p><p>This link expires in 10 minutes. If you didn't ask for it, ignore this email.</p>`,
-          });
-        },
-      }),
       twoFactor({ issuer: "HaloHaul" }),
       ...(opts.nextCookies === false ? [] : [nextCookies()]), // must stay last
     ],

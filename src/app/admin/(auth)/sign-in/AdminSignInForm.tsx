@@ -9,7 +9,7 @@ import { EMAIL_MAX, checkPassword, cleanEmail } from "@/domain/sanitize";
 import { authClient } from "@/lib/auth-client";
 import { ADMIN_PORTAL_HEADER } from "@/lib/authPortal";
 
-/** Password only: no sign-up and no email links, which would skip two-factor. */
+/** Password only, then two-factor: no sign-up. */
 export function AdminSignInForm({ next }: { next: string }) {
   const router = useRouter();
   const [errors, setErrors] = useState<{ email?: string; password?: string }>({});
