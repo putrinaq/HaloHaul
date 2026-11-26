@@ -124,6 +124,10 @@ export function SignInForm() {
   function sendLink(to: string) {
     return run(async () => {
       const { error } = await authClient.signIn.magicLink({ email: to, callbackURL: next });
+      // Our side failed (say, email isn't working): another try won't help, a password will.
+      if (error && (error.status ?? 0) >= 500) {
+        return "We can't send sign-in emails right now. Use the Password tab, or New account if you haven't got one.";
+      }
       if (error) return friendly(error, "We couldn't send the link. Try again.");
       setSentTo(to);
       return null;
