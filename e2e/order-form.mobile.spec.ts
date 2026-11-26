@@ -30,4 +30,15 @@ test("search and tap a category on a phone", async ({ page }) => {
   await expect(page.getByText("Choose a category")).toHaveCount(0);
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
   expect(overflow).toBeLessThanOrEqual(0);
+
+  // The measuring guide opens as a sheet that fits the screen.
+  await page.getByRole("button", { name: "How to measure foot length" }).tap();
+  const guide = page.getByRole("dialog", { name: "How to measure foot length" });
+  await expect(guide.getByRole("img", { name: /Foot on paper/ })).toBeVisible();
+  const g = (await guide.boundingBox())!;
+  expect(g.x).toBeGreaterThanOrEqual(0);
+  expect(g.x + g.width).toBeLessThanOrEqual(vw);
+  if (process.env.GUIDE_SHOTS) await page.screenshot({ path: `${process.env.GUIDE_SHOTS}/phone.png` });
+  await guide.getByRole("button", { name: "Close" }).tap();
+  await expect(guide).toHaveCount(0);
 });

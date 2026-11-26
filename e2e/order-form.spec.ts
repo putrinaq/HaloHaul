@@ -73,6 +73,23 @@ test("a photo search takes a link from any website", async ({ page }) => {
   await expect(page.getByRole("heading", { name: "Details" })).toBeVisible();
 });
 
+test("the i beside a measurement shows how to measure it", async ({ page }) => {
+  const box = await toDetails(page);
+  await box.click();
+  await box.fill("ring");
+  await box.press("Enter");
+  await page.getByRole("button", { name: "How to measure ring inner circumference" }).click();
+  const guide = page.getByRole("dialog", { name: "How to measure ring inner circumference" });
+  await expect(guide.getByRole("img", { name: /paper strip/ })).toBeVisible();
+  await expect(guide.getByRole("listitem")).toHaveCount(3);
+  if (process.env.GUIDE_SHOTS) await page.screenshot({ path: `${process.env.GUIDE_SHOTS}/desktop.png` });
+  await page.keyboard.press("Escape");
+  await expect(guide).toHaveCount(0);
+  // Typing in the field still works: the button isn't part of the label.
+  await page.getByLabel(/Ring inner circumference/).fill("52");
+  await expect(page.getByLabel(/Ring inner circumference/)).toHaveValue("52");
+});
+
 test("continuing with no category asks for one, and picking one clears the error", async ({ page }) => {
   const box = await toDetails(page);
   await page.getByRole("button", { name: "Continue" }).click();

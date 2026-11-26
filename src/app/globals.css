@@ -734,3 +734,101 @@
     display: none;
   }
 }
+
+/* ---- Measuring guides ------------------------------------------------------------
+   The drawings in components/category/measureArt.tsx. Still, everything is drawn;
+   with motion, each loop draws the tape on, ticks its ends in, holds, then fades.
+   `-late` parts start once the first tape is on (the ring's ruler, the foot's tape). */
+.measure-art .ma-fade {
+  opacity: 0.5;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .measure-art .ma-draw,
+  .measure-art .ma-draw-late {
+    stroke-dasharray: 1;
+    animation: ma-draw 4s var(--ease-out-quart) infinite;
+  }
+  .measure-art .ma-draw-late {
+    animation-name: ma-draw-late;
+  }
+  .measure-art .ma-pop {
+    animation: ma-pop 4s ease-out infinite;
+  }
+  .measure-art .ma-pop-late {
+    animation: ma-pop-late 4s ease-out infinite;
+  }
+  .measure-art .ma-fade {
+    animation: ma-fade 4s ease-out infinite;
+  }
+}
+@keyframes ma-draw {
+  0%,
+  8% {
+    stroke-dashoffset: 1;
+    opacity: 1;
+  }
+  45%,
+  85% {
+    stroke-dashoffset: 0;
+    opacity: 1;
+  }
+  100% {
+    stroke-dashoffset: 0;
+    opacity: 0;
+  }
+}
+@keyframes ma-draw-late {
+  0%,
+  45% {
+    stroke-dashoffset: 1;
+    opacity: 1;
+  }
+  75%,
+  88% {
+    stroke-dashoffset: 0;
+    opacity: 1;
+  }
+  100% {
+    stroke-dashoffset: 0;
+    opacity: 0;
+  }
+}
+@keyframes ma-pop {
+  0%,
+  40% {
+    opacity: 0;
+  }
+  50%,
+  85% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+@keyframes ma-pop-late {
+  0%,
+  70% {
+    opacity: 0;
+  }
+  78%,
+  88% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+@keyframes ma-fade {
+  0%,
+  5% {
+    opacity: 0;
+  }
+  25%,
+  85% {
+    opacity: 0.5;
+  }
+  100% {
+    opacity: 0;
+  }
+}

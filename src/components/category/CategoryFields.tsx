@@ -1,6 +1,5 @@
 "use client";
 
-import { ImageIcon } from "lucide-react";
 import { get, type FieldErrors, type FieldValues, type UseFormRegister } from "react-hook-form";
 import { FieldError } from "@/components/form/FieldError";
 import { Input } from "@/components/ui/input";
@@ -8,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { visibleKeys, type ResolvedField } from "@/domain/categorySchema";
 import { cn } from "@/lib/utils";
+import { MeasureGuide, hasMeasureGuide } from "./MeasureGuide";
 
 const selectClass =
   "h-11 w-full rounded-lg border border-input bg-transparent px-3 text-base outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 aria-invalid:border-destructive";
@@ -87,18 +87,22 @@ function Field({
   const label = f.unit ? `${f.label} (${f.unit})` : f.label;
   const optional = !f.required && !f.requiredIf;
   const wide = f.kind === "textarea" || f.kind === "multiselect";
+  const guide = hasMeasureGuide(f.key, imageUrl) ? <MeasureGuide fieldKey={f.key} label={f.label} imageUrl={imageUrl} /> : null;
 
   if (f.kind === "boolean") {
     return (
       <div className={cn("space-y-1.5 sm:col-span-2")}>
-        <label htmlFor={id} className="flex min-h-11 cursor-pointer items-center gap-3 text-sm">
-          <input type="checkbox" className="size-5 accent-white" {...common} />
-          <span>
-            {f.label}
-            {f.required ? null : <span className="text-muted-foreground"> — optional</span>}
-          </span>
-        </label>
-        <Help id={id} f={f} imageUrl={imageUrl} />
+        <div className="flex items-center gap-2">
+          <label htmlFor={id} className="flex min-h-11 cursor-pointer items-center gap-3 text-sm">
+            <input type="checkbox" className="size-5 accent-white" {...common} />
+            <span>
+              {f.label}
+              {f.required ? null : <span className="text-muted-foreground"> — optional</span>}
+            </span>
+          </label>
+          {guide}
+        </div>
+        <Help id={id} f={f} />
         <FieldError id={`${id}-err`} message={message} />
       </div>
     );
@@ -106,17 +110,20 @@ function Field({
 
   return (
     <div className={cn("space-y-1.5", wide && "sm:col-span-2")}>
-      {f.kind === "multiselect" ? (
-        <p className="text-sm leading-none font-medium" id={`${id}-label`}>
-          {label}
-          {optional ? <span className="font-normal text-muted-foreground"> — optional</span> : null}
-        </p>
-      ) : (
-        <Label htmlFor={id}>
-          {label}
-          {optional ? <span className="font-normal text-muted-foreground"> — optional</span> : null}
-        </Label>
-      )}
+      <div className="flex items-center gap-1.5">
+        {f.kind === "multiselect" ? (
+          <p className="text-sm leading-none font-medium" id={`${id}-label`}>
+            {label}
+            {optional ? <span className="font-normal text-muted-foreground"> — optional</span> : null}
+          </p>
+        ) : (
+          <Label htmlFor={id}>
+            {label}
+            {optional ? <span className="font-normal text-muted-foreground"> — optional</span> : null}
+          </Label>
+        )}
+        {guide}
+      </div>
       {f.kind === "number" || f.kind === "measurement" ? (
         <Input type="number" inputMode="decimal" step={f.step} min={f.min} max={f.max} placeholder={f.placeholder} className="h-11" {...common} />
       ) : f.kind === "select" ? (
@@ -144,27 +151,18 @@ function Field({
       ) : (
         <Input type={f.format === "email" ? "email" : "text"} maxLength={f.maxLength} placeholder={f.placeholder} className="h-11" {...common} />
       )}
-      <Help id={id} f={f} imageUrl={imageUrl} />
+      <Help id={id} f={f} />
       <FieldError id={`${id}-err`} message={message} />
     </div>
   );
 }
 
-function Help({ id, f, imageUrl }: { id: string; f: ResolvedField; imageUrl?: string }) {
-  if (!f.helpText && !imageUrl) return null;
+/** The short hint under a field. The picture, if any, is in the "i" guide beside the label. */
+function Help({ id, f }: { id: string; f: ResolvedField }) {
+  if (!f.helpText) return null;
   return (
-    <div id={`${id}-help`} className="text-xs text-muted-foreground">
+    <p id={`${id}-help`} className="text-xs text-muted-foreground">
       {f.helpText}
-      {imageUrl ? (
-        <details className="mt-1">
-          <summary className="inline-flex min-h-8 cursor-pointer items-center gap-1 text-white/70 hover:text-white">
-            <ImageIcon className="size-3.5" aria-hidden />
-            How to measure
-          </summary>
-          {/* eslint-disable-next-line @next/next/no-img-element -- short-lived presigned R2 URL */}
-          <img src={imageUrl} alt={`How to measure ${f.label.toLowerCase()}`} className="mt-2 max-h-64 rounded-lg border border-white/10" />
-        </details>
-      ) : null}
-    </div>
+    </p>
   );
 }
